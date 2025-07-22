@@ -12,6 +12,7 @@ import pyppeteer
 import re
 import requests
 import typing
+import util
 
 # To check credits  : https://console.cloud.google.com/google/maps-apis/metrics?project=first-server-449508-n0
 # To lint           : black hdb_scraper.py
@@ -579,74 +580,6 @@ async def _scrape_single_listing(listing_url, index_of_listing, num_listings):
 ################################################################
 
 
-# N/B: Wikipedia stores the list of MRT station names in 'tables',
-# each with a link to the dedicated page for the MRT station,
-# with italicized names being 'future' stations (and are thus excluded)
-def _get_all_mrt_station_names():
-    logger.debug(f"Getting all MRT station names from Wikipedia")
-    response = requests.get(WIKIPEDIA_LIST_OF_MRT_STATIONS_URL)
-    assert response.status_code == 200
-    html_soup = bs4.BeautifulSoup(response.text, "html.parser")
-    all_mrt_station_names = set()
-    all_tables = html_soup.find_all("table", class_="wikitable sortable")
-    for table in all_tables:
-        links_in_table = table.find_all("a", href=True)
-        for link in links_in_table:
-            link_href = link["href"]
-            if not re.search(
-                pattern=r"_MRT_station$", string=link_href, flags=re.IGNORECASE
-            ) and not re.search(
-                pattern=r"_MRT/LRT_station$", string=link_href, flags=re.IGNORECASE
-            ):
-                continue
-            if link.find("i") is not None:
-                continue
-            assert link_href.startswith("/wiki/")
-            mrt_station_name = link_href[len("/wiki/") :].replace("_", " ")
-            all_mrt_station_names.add(mrt_station_name)
-    logger.info(f"Obtained {len(all_mrt_station_names)} MRT station names!")
-    return all_mrt_station_names
-
-
-def _get_gmaps_client():
-    logger.debug("Initializing Google Maps API client")
-    api_key = os.getenv("GOOGLE_MAPS_API_KEY")
-    return googlemaps.Client(key=api_key)
-
-
-CACHED_LAT_LON = dict()
-
-
-def _get_lat_lon_from_address(gmaps, address):
-    logger.debug(f"Getting Google Maps geocode of '{address}'")
-    if address in CACHED_LAT_LON:
-        logger.debug(f"Hit cache for Google Maps geocode of '{address}'!")
-        return CACHED_LAT_LON[address]
-    logger.debug(f"Missed cache for Google Maps geocode of '{address}'")
-    geocode_result = gmaps.geocode(address=address)
-    if geocode_result is not None:
-        logger.debug(f"Successfully retrieved Google Maps geocode of '{address}'")
-        location = geocode_result[0]["geometry"]["location"]
-        lat_lon = (location["lat"], location["lng"])
-        CACHED_LAT_LON[address] = lat_lon
-        return lat_lon
-    logger.error(f"Failed to get Google Maps geocode of '{address}'")
-    return None, None
-
-
-def _precompute_mrt_station_map(gmaps, all_mrt_station_names):
-    logger.debug(f"Precomputing MRT station map with latitudes and longitudes")
-    mrt_station_map = dict()
-    for mrt_station_name in all_mrt_station_names:
-        mrt_station_map[mrt_station_name] = _get_lat_lon_from_address(
-            gmaps=gmaps, address=f"{mrt_station_name}, Singapore"
-        )
-    logger.info(
-        f"Precomputed MRT station map with {len(mrt_station_map)} latitudes and longitudes"
-    )
-    return mrt_station_map
-
-
 # Based on great-circle distance
 def _haversine_distance_km(lat1, lon1, lat2, lon2):
     R = 6371.0  # Radius of the Earth in kilometers
@@ -674,7 +607,7 @@ class NearestMRTInfo:
 def _nearest_mrt_info(postal_code, gmaps, mrt_station_map):
     logger.debug(f"Finding nearest MRT info for 'S{postal_code}'")
     postal_code_address = f"{postal_code}, Singapore"
-    postal_code_lat, postal_code_lon = _get_lat_lon_from_address(
+    postal_code_lat, postal_code_lon = util.get_lat_lon_from_address_throwing(
         gmaps=gmaps, address=postal_code_address
     )
     mrt_station_distances_km = [
@@ -973,12 +906,8 @@ def main():
 
     logger.setLevel(args.log_level)
 
-    all_mrt_station_names = _get_all_mrt_station_names()
-    gmaps = _get_gmaps_client()
-    mrt_station_map = _precompute_mrt_station_map(
-        gmaps=gmaps, all_mrt_station_names=all_mrt_station_names
-    )
-    asyncio.run(_main_scrape_all(gmaps=gmaps, mrt_station_map=mrt_station_map))
+    gmaps = util.get_gmaps_client()
+    # asyncio.run(_main_scrape_all(gmaps=gmaps, mrt_station_map=mrt_station_map))
 
 
 if __name__ == "__main__":
