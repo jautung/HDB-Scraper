@@ -12,7 +12,7 @@ import gmaps_util
 WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
     "https://en.wikipedia.org/wiki/List_of_Singapore_MRT_stations"
 )
-logger = logging.getLogger("HDB Scraper: MRT Precompute")
+logger = logging.getLogger(__name__)
 
 
 def _get_all_mrt_station_names():

@@ -15,7 +15,7 @@ RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
 NEXT_PAGE_WAIT_TIME_SECONDS = 3
-logger = logging.getLogger("HDB Scraper: HDB Listing Pages")
+logger = logging.getLogger(__name__)
 
 
 async def _get_listing_urls():

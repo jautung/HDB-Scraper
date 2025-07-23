@@ -16,7 +16,7 @@ DELAY_PER_LISTING_LOAD_SECONDS = 1
 RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
-logger = logging.getLogger("HDB Scraper: HDB Base Scraper")
+logger = logging.getLogger(__name__)
 
 
 async def _scrape_listings():

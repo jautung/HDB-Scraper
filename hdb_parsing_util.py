@@ -5,7 +5,7 @@ import logging
 import re
 import typing
 
-logger = logging.getLogger("HDB Scraper: HDB Parsing Util")
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass

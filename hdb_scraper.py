@@ -8,7 +8,7 @@ import typing
 import file_util
 import gmaps_util
 
-logger = logging.getLogger("HDB Scraper: HDB Full Results")
+logger = logging.getLogger(__name__)
 
 
 def _full_results_with_mrt_info():

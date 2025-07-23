@@ -3,7 +3,7 @@ import asyncio
 import logging
 import pyppeteer
 
-logger = logging.getLogger("HDB Scraper: Browser Util")
+logger = logging.getLogger(__name__)
 
 
 # "homes.hdb.gov.sg" has dynamically loaded page content rendered by JavaScript (specifically Angular),
@@ -108,15 +108,21 @@ class BrowserUtil:
 
     async def _maybe_close_page(self):
         if self.page is not None:
-            logger.debug("Closing page")
-            try:
-                await self.page.close()
-            except pyppeteer.errors.NetworkError as e:
-                if "Target closed" in str(e):
-                    logger.warning("Page was already closed, ignoring additional close")
-                else:
-                    raise e
-            self.page = None
+            if self.page.isClosed():
+                logger.debug("Page is already closed")
+                self.page = None
+            else:
+                logger.debug("Closing page")
+                try:
+                    await self.page.close()
+                except pyppeteer.errors.NetworkError as e:
+                    if "Target closed" in str(e):
+                        logger.warning(
+                            "Page was already closed, ignoring additional close"
+                        )
+                    else:
+                        raise e
+                self.page = None
         else:
             logger.debug("No page to close")
 
