@@ -25,7 +25,7 @@ class BrowserUtil:
     async def run_with_browser_page_for_url(
         self, url, callback_on_page, debug_logging_name, current_attempt=1
     ):
-        self._maybe_close_page()
+        await self._maybe_close_page()
 
         try:
             return await asyncio.wait_for(
@@ -76,7 +76,7 @@ class BrowserUtil:
             )
 
         finally:
-            self._maybe_close_page()
+            await self._maybe_close_page()
 
     async def _inner_run_with_browser_page_for_url(
         self, url, callback_on_page, debug_logging_name
@@ -102,9 +102,9 @@ class BrowserUtil:
 
         return self.browser
 
-    def _maybe_close_page(self):
+    async def _maybe_close_page(self):
         if self.page is not None:
             logger.debug("Closing page")
-            self.page.close()
+            await self.page.close()
         else:
             logger.debug("No page to close")
