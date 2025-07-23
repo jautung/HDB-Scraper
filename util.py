@@ -1,6 +1,6 @@
-import googlemaps
-import logging
+# pylint: disable=import-error,missing-module-docstring,missing-function-docstring
 import os
+import googlemaps
 
 OUTPUT_FOLDER = "output"
 PRECOMPUTE_FILENAME = "mrt_lat_lon.csv"
@@ -44,7 +44,7 @@ def get_gmaps_client():
 #     return None, None
 
 
-def get_lat_lon_from_address_throwing(gmaps, address):
+def get_lat_lon_from_address(gmaps, address):
     geocode_result = gmaps.geocode(address=address)
     location = geocode_result[0]["geometry"]["location"]
     return (location["lat"], location["lng"])

@@ -13,7 +13,7 @@ A way to get all the listings from the [HDB resale portal](https://homes.hdb.gov
 ### To lint
 
 ```bash
-black hdb_scraper.py
+black .
 ```
 
 ### To run

@@ -1,3 +1,4 @@
+# pylint: disable=import-error,missing-module-docstring,missing-function-docstring
 import argparse
 import asyncio
 import bs4
@@ -607,7 +608,7 @@ class NearestMRTInfo:
 def _nearest_mrt_info(postal_code, gmaps, mrt_station_map):
     logger.debug(f"Finding nearest MRT info for 'S{postal_code}'")
     postal_code_address = f"{postal_code}, Singapore"
-    postal_code_lat, postal_code_lon = util.get_lat_lon_from_address_throwing(
+    postal_code_lat, postal_code_lon = util.get_lat_lon_from_address(
         gmaps=gmaps, address=postal_code_address
     )
     mrt_station_distances_km = [
