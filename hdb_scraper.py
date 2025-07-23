@@ -13,7 +13,7 @@ import pyppeteer
 import re
 import requests
 import typing
-import util
+import file_util
 
 # To check credits  : https://console.cloud.google.com/google/maps-apis/metrics?project=first-server-449508-n0
 # To lint           : black hdb_scraper.py
@@ -608,7 +608,7 @@ class NearestMRTInfo:
 def _nearest_mrt_info(postal_code, gmaps, mrt_station_map):
     logger.debug(f"Finding nearest MRT info for 'S{postal_code}'")
     postal_code_address = f"{postal_code}, Singapore"
-    postal_code_lat, postal_code_lon = util.get_lat_lon_from_address(
+    postal_code_lat, postal_code_lon = file_util.get_lat_lon_from_address(
         gmaps=gmaps, address=postal_code_address
     )
     mrt_station_distances_km = [
@@ -907,7 +907,7 @@ def main():
 
     logger.setLevel(args.log_level)
 
-    gmaps = util.get_gmaps_client()
+    gmaps = file_util.get_gmaps_client()
     # asyncio.run(_main_scrape_all(gmaps=gmaps, mrt_station_map=mrt_station_map))
 
 

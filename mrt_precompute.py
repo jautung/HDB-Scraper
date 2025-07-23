@@ -6,7 +6,8 @@ import os
 import re
 import bs4
 import requests
-import util
+import file_util
+import gmaps_util
 
 WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
     "https://en.wikipedia.org/wiki/List_of_Singapore_MRT_stations"
@@ -48,16 +49,16 @@ def _get_all_mrt_station_names():
 
 def _precompute_mrt_station_map(all_mrt_station_names):
     logger.debug("Precomputing MRT station map with latitudes and longitudes")
-    gmaps = util.get_gmaps_client()
+    gmaps = gmaps_util.get_gmaps_client()
 
     with open(
-        os.path.join(util.OUTPUT_FOLDER, util.PRECOMPUTE_FILENAME),
+        os.path.join(file_util.OUTPUT_FOLDER, file_util.PRECOMPUTE_FILENAME),
         "w",
         encoding="utf-8",
     ) as csvfile:
         writer = csv.writer(csvfile)
         for mrt_station_name in all_mrt_station_names:
-            lat_lon = util.get_lat_lon_from_address(
+            lat_lon = gmaps_util.get_lat_lon_from_address(
                 gmaps=gmaps, address=f"{mrt_station_name}, Singapore"
             )
             writer.writerow([mrt_station_name, *lat_lon])
@@ -78,7 +79,7 @@ def main():
     args = parser.parse_args()
     logger.setLevel(args.log_level)
 
-    util.maybe_create_output_folder()
+    file_util.maybe_create_output_folder()
     all_mrt_station_names = _get_all_mrt_station_names()
     _precompute_mrt_station_map(all_mrt_station_names=all_mrt_station_names)
 
