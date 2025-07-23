@@ -23,9 +23,12 @@ def get_walking_distance_and_duration(gmaps, start, end):
         mode="walking",
     )
     gmaps_result_inner = gmaps_result["rows"][0]["elements"][0]
-    distance_metres = gmaps_result_inner["distance"]["value"]
-    duration_seconds = gmaps_result_inner["duration"]["value"]
-    return (distance_metres, duration_seconds)
+    if gmaps_result_inner["status"] == "OK":
+        distance_metres = gmaps_result_inner["distance"]["value"]
+        duration_seconds = gmaps_result_inner["duration"]["value"]
+        return (distance_metres, duration_seconds)
+    assert gmaps_result_inner["status"] == "NOT_FOUND"
+    return (None, None)
 
 
 # Approximation, based on great-circle distance

@@ -163,15 +163,24 @@ def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_ma
         start=postal_code_address,
         end=nearest_mrt_station,
     )
-    logger.debug(
-        f"Google Maps says that 'S{postal_code}' to {nearest_mrt_station} takes {(duration_seconds / 60):.2f}mins"
-    )
+    if distance_metres is not None and duration_seconds is not None:
+        logger.debug(
+            f"Google Maps says that 'S{postal_code}' to {nearest_mrt_station} takes {(duration_seconds / 60):.2f}mins"
+        )
+    else:
+        logger.debug(
+            f"Google Maps unable to find walking distance from 'S{postal_code}' to {nearest_mrt_station}"
+        )
 
     return NearestMRTInfo(
         nearest_mrt_station=nearest_mrt_station,
         straight_line_distance_km=nearest_mrt_station_distance_km,
-        walking_distance_km=distance_metres / 1000,
-        walking_duration_mins=duration_seconds / 60,
+        walking_distance_km=distance_metres / 1000
+        if distance_metres is not None
+        else distance_metres,
+        walking_duration_mins=duration_seconds / 60
+        if duration_seconds is not None
+        else duration_seconds,
     )
 
 
