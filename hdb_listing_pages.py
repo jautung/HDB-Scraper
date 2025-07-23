@@ -41,6 +41,7 @@ async def _get_listing_urls():
     with open(
         os.path.join(file_util.OUTPUT_FOLDER, file_util.LISTINGS_FILENAME),
         "w",
+        newline="",
         encoding="utf-8",
     ) as csvfile:
         writer = csv.writer(csvfile)

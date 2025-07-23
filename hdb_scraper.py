@@ -451,7 +451,7 @@ def _augment_listings_with_mrt_info(listings, gmaps, mrt_station_map):
 
 def _export_to_csv(listings):
     num_written = 0
-    with open(OUTPUT_FILENAME, "w+", encoding="utf-8") as csvfile:
+    with open(OUTPUT_FILENAME, "w+", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(
             [

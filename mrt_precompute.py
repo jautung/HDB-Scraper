@@ -54,6 +54,7 @@ def _precompute_mrt_station_map(all_mrt_station_names):
     with open(
         os.path.join(file_util.OUTPUT_FOLDER, file_util.PRECOMPUTE_FILENAME),
         "w",
+        newline="",
         encoding="utf-8",
     ) as csvfile:
         writer = csv.writer(csvfile)
