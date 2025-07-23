@@ -83,6 +83,9 @@ def _full_results_with_mrt_info():
             base_info_file.flush()
             os.fsync(base_info_file.fileno())
 
+            prev_postal_code = postal_code
+            prev_postal_code_nearest_mrt_info = nearest_mrt_info
+
         logger.info(
             f"Successfully exported {num_written} scraped results to {file_util.FULL_RESULTS_FILENAME}"
         )
