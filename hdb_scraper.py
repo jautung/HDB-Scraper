@@ -1,31 +1,16 @@
-# pylint: disable=import-error,missing-module-docstring,missing-function-docstring
+# pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import argparse
 import asyncio
 import bs4
 import csv
 import dataclasses
 import datetime
-import googlemaps
 import logging
 import math
-import os
-import pyppeteer
 import re
-import requests
 import typing
+import browser_util
 import file_util
-
-# To check credits  : https://console.cloud.google.com/google/maps-apis/metrics?project=first-server-449508-n0
-# To lint           : black hdb_scraper.py
-# To run            : python3 hdb_scraper.py 2>&1 | tee output.txt
-# To run one page   : python3 hdb_scraper.py --max_number_of_pages 1 2>&1 | tee output.txt
-# To debug          : python3 hdb_scraper.py --log_level DEBUG 2>&1 | tee output.txt
-
-HDB_URL_MAIN = "https://homes.hdb.gov.sg/home/finding-a-flat"
-HDB_URL_PREFIX = "https://homes.hdb.gov.sg"
-WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
-    "https://en.wikipedia.org/wiki/List_of_Singapore_MRT_stations"
-)
 
 OUTPUT_FILENAME = "listings.csv"  # Default
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5  # Default
@@ -39,140 +24,6 @@ MAX_NUMBER_OF_PAGES = None  # Default
 ################################################################
 # BROWSER + RENDER HTML START
 ################################################################
-
-BROWSER = None
-
-
-# "homes.hdb.gov.sg" has dynamically loaded page content rendered by JavaScript (specifically Angular),
-# so we can't simply GET request the static HTML (doing this yields minimal visible content of <app-root>...</app-root>).
-# We instead use 'pyppeteer' to launch a headless browser and retrieve the rendered HTML instead.
-async def _run_with_browser_page_for_url(
-    url, callback_on_page, debug_logging_name, current_attempt=1
-):
-    page = None
-
-    async def inner_run_with_browser_page_for_url():
-        global BROWSER
-        if BROWSER is None:
-            logger.debug(f"Launching browser for {debug_logging_name}")
-            BROWSER = await pyppeteer.launch(
-                headless=True, dumpio=False, logLevel=logger.level, autoClose=False
-            )
-        else:
-            logger.debug(
-                f"Browser already exists, using existing browser for {debug_logging_name}"
-            )
-
-        page = await BROWSER.newPage()
-
-        logger.debug(f"Navigating to {debug_logging_name}")
-        await page.goto(url, waitUntil="networkidle0")
-        return await callback_on_page(
-            page=page,
-            debug_logging_name=debug_logging_name,
-            current_attempt=current_attempt,
-        )
-
-    try:
-        return await asyncio.wait_for(
-            inner_run_with_browser_page_for_url(),
-            timeout=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
-        )
-
-    except (asyncio.TimeoutError, pyppeteer.errors.NetworkError) as e:
-        if current_attempt >= MAX_ATTEMPTS_FOR_NETWORK_ERROR:
-            logger.error(
-                f"Timeout or network error for {debug_logging_name} (attempt {current_attempt}), giving up!"
-            )
-            logger.error(e)
-            return None
-        else:
-            logger.warning(
-                f"Timeout or network error for {debug_logging_name} (attempt {current_attempt}), retrying!"
-            )
-            logger.debug(e)
-            return await _run_with_browser_page_for_url(
-                url=url,
-                callback_on_page=callback_on_page,
-                debug_logging_name=debug_logging_name,
-                current_attempt=current_attempt + 1,
-            )
-
-    except Exception as e:
-        if current_attempt >= MAX_ATTEMPTS_FOR_OTHER_ERROR:
-            logger.error(
-                f"Unexpected error for {debug_logging_name} (attempt {current_attempt}), giving up!"
-            )
-            logger.error(e)
-            return None
-        else:
-            logger.warning(
-                f"Unexpected error for {debug_logging_name} (attempt {current_attempt}), retrying!"
-            )
-            logger.debug(e)
-            return await _run_with_browser_page_for_url(
-                url=url,
-                callback_on_page=callback_on_page,
-                debug_logging_name=debug_logging_name,
-                current_attempt=current_attempt + 1,
-            )
-
-    finally:
-        if page is not None:
-            logger.debug(f"Closing page for {debug_logging_name}")
-            page.close()
-        else:
-            logger.debug(f"No page to close for {debug_logging_name}")
-
-
-def _get_paged_rendered_html_browser_page_callback(
-    initial_action=None, pagination_action=None
-):
-    async def _callback(page, debug_logging_name, current_attempt):
-        htmls = []
-
-        if initial_action is not None:
-            await initial_action(page=page, debug_logging_name=debug_logging_name)
-
-        logger.info(f"Extracting rendered HTML from {debug_logging_name} (page 1)")
-        html = await page.content()
-        logger.debug(
-            f"Successfully extracted rendered HTML from {debug_logging_name} (page 1)"
-        )
-        htmls.append(html)
-
-        if pagination_action is not None and MAX_NUMBER_OF_PAGES != 1:
-            page_num = 1
-
-            while True:
-                was_pagination_successful = await pagination_action(
-                    page=page, debug_logging_name=debug_logging_name
-                )
-                if not was_pagination_successful:
-                    logger.info(
-                        f"No more pages from {debug_logging_name} ({page_num} pages total)"
-                    )
-                    break
-                page_num += 1
-
-                logger.info(
-                    f"Extracting rendered HTML from {debug_logging_name} (page {page_num})"
-                )
-                html = await page.content()
-                logger.debug(
-                    f"Successfully extracted rendered HTML from {debug_logging_name} (page {page_num})"
-                )
-                htmls.append(html)
-
-                if MAX_NUMBER_OF_PAGES is not None and page_num >= MAX_NUMBER_OF_PAGES:
-                    logger.info(
-                        f"Hit the maximum number of pages desired from {debug_logging_name} ({page_num} pages total)"
-                    )
-                    break
-
-        return htmls
-
-    return _callback
 
 
 def _get_single_rendered_html_browser_page_callback(
@@ -204,55 +55,6 @@ def _get_single_rendered_html_browser_page_callback(
     return _callback
 
 
-async def _click_resale_listings_button(page, debug_logging_name):
-    # N/B: any 'h1' tag is a simple heuristic to determine that the Angular-rendered web page has loaded
-    logger.debug(f"Waiting page to load of {debug_logging_name}")
-    await page.waitForSelector("h1")
-
-    logger.debug(f"Finding 'resale listings' button of {debug_logging_name}")
-    links = await page.querySelectorAll("a.flat-link")
-    links_for_resale_listings = [
-        link
-        for link in links
-        # Check for nested child element of the link to indicate 'resale'
-        if await link.querySelector(".tag-resale")
-    ]
-    assert len(links_for_resale_listings) == 1
-    link_for_resale_listings = links_for_resale_listings[0]
-
-    logger.debug(f"Clicking 'resale listings' button of {debug_logging_name}")
-    await link_for_resale_listings.click()
-    logger.debug(
-        f"Waiting for page to reload with resale listings of {debug_logging_name}"
-    )
-    await page.waitForSelector(".listing-card")
-
-
-async def _click_next_page_button(page, debug_logging_name):
-    logger.debug(f"Waiting for 'next page' button of {debug_logging_name}")
-    await page.waitForSelector('[aria-label="Next"]')
-    next_page_button = await page.querySelector('[aria-label="Next"]')
-    assert next_page_button is not None
-
-    is_next_page_button_disabled = (
-        await page.evaluate(
-            'button => button.getAttribute("aria-disabled")', next_page_button
-        )
-        == "true"
-    )
-    if is_next_page_button_disabled:
-        logger.debug(f"Found disabled 'next page' button of {debug_logging_name}")
-        return False
-
-    logger.debug(f"Clicking on 'next page' button of {debug_logging_name}")
-    await next_page_button.click()
-    logger.debug(f"Waiting for 'next page' to reload of {debug_logging_name}")
-    await page.waitFor(3000)
-    await page.waitForSelector(".listing-card")
-
-    return True
-
-
 async def _click_expand_all_button(page, debug_logging_name):
     logger.debug(f"Waiting for 'Expand/Collapse all' button of {debug_logging_name}")
     await page.waitForSelector(".btn-secondary")
@@ -267,44 +69,6 @@ async def _click_expand_all_button(page, debug_logging_name):
 ################################################################
 # PARSE HTML START
 ################################################################
-
-
-async def _get_listing_urls():
-    logger.info(f"Starting to get all listing URLs from {HDB_URL_MAIN}")
-
-    logger.debug(f"Getting paged HTMLs from {HDB_URL_MAIN}")
-    htmls = await _run_with_browser_page_for_url(
-        url=HDB_URL_MAIN,
-        callback_on_page=_get_paged_rendered_html_browser_page_callback(
-            initial_action=_click_resale_listings_button,
-            pagination_action=_click_next_page_button,
-        ),
-        debug_logging_name=HDB_URL_MAIN,
-    )
-    htmls = [] if htmls is None else htmls
-    logger.debug(f"Got {len(htmls)} paged HTMLs from {HDB_URL_MAIN}")
-
-    all_listing_urls = set()
-    for page_index, html in enumerate(htmls):
-        logger.debug(
-            f"Parsing HTML page {page_index+1} of {len(htmls)} from {HDB_URL_MAIN}"
-        )
-        html_soup = bs4.BeautifulSoup(html, "html.parser")
-        listing_urls = [
-            listing_link["href"]
-            for listing_link in html_soup.find_all("a", class_="flat-link")
-        ]
-        listing_urls = [
-            # Many URLs are just encoded as '/home/resale/xxx'
-            HDB_URL_PREFIX + listing_url if listing_url.startswith("/") else listing_url
-            for listing_url in listing_urls
-        ]
-        logger.info(
-            f"Found {len(listing_urls)} listing URLs from page {page_index+1} of {HDB_URL_MAIN}"
-        )
-        all_listing_urls = all_listing_urls | set(listing_urls)
-
-    return all_listing_urls
 
 
 def _direct_text_contents(contents):
@@ -544,7 +308,7 @@ async def _scrape_single_listing(listing_url, index_of_listing, num_listings):
     logger.info(f"Starting to scrape {debug_logging_name}")
 
     logger.debug(f"Getting rendered HTML of {debug_logging_name}")
-    html = await _run_with_browser_page_for_url(
+    html = await browser_util.run_with_browser_page_for_url(
         url=listing_url,
         callback_on_page=_get_single_rendered_html_browser_page_callback(
             # N/B: any 'h3' tag is a simple heuristic to determine that the Angular-rendered web page has loaded

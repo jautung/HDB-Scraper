@@ -1,4 +1,4 @@
-# pylint: disable=import-error, missing-function-docstring, missing-module-docstring, logging-fstring-interpolation
+# pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import argparse
 import csv
 import logging
@@ -12,7 +12,7 @@ import gmaps_util
 WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
     "https://en.wikipedia.org/wiki/List_of_Singapore_MRT_stations"
 )
-logger = logging.getLogger("HDB Scraper")
+logger = logging.getLogger("HDB Scraper: MRT Precompute")
 
 
 def _get_all_mrt_station_names():
