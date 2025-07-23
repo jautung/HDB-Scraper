@@ -82,7 +82,7 @@ class BrowserUtil:
     async def _inner_run_with_browser_page_for_url(
         self, url, callback_on_page, debug_logging_name, current_attempt
     ):
-        self.page = await self._get_browser().newPage()
+        self.page = await (await self._get_browser()).newPage()
 
         logger.debug(f"Navigating to {debug_logging_name}")
         await self.page.goto(url, waitUntil="networkidle0")
