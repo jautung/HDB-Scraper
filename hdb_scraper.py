@@ -37,11 +37,16 @@ def _full_results_with_mrt_info():
         if not output_file_exists:
             _write_full_results_headers(full_results_writer=full_results_writer)
 
+        # Sorting allows us to 'cache' the results of postal code lookups,
+        # without the overhead of keeping an entire dictionary
+        # of postal code -> nearest MRT info in memory
         listing_dicts = sorted(
             list(base_info_dict_reader), key=lambda row: row["Postal code"]
         )
         num_listings = len(listing_dicts)
         num_written = 0
+        prev_postal_code = None
+        prev_postal_code_nearest_mrt_info = None
         for listing_index, listing_dict in enumerate(listing_dicts):
             assert "Link" in listing_dict and listing_dict["Link"]
             listing_url = listing_dict["Link"]
@@ -55,17 +60,20 @@ def _full_results_with_mrt_info():
                 )
                 continue
 
-            nearest_mrt_info = _get_nearest_mrt_info_for_listing(
-                listing_dict=listing_dict,
-                debug_logging_name=debug_logging_name,
-                mrt_station_map=mrt_station_map,
-                gmaps=gmaps,
-            )
-            if nearest_mrt_info is None:
-                logger.warning(
-                    f"Unable to scrape {debug_logging_name}, skipping writing to {file_util.FULL_RESULTS_FILENAME}"
+            assert "Postal code" in listing_dict and listing_dict["Postal code"]
+            postal_code = listing_dict["Postal code"]
+            if prev_postal_code is not None and postal_code == prev_postal_code:
+                logger.info(
+                    f"Cache hit for nearest MRT info for 'S{postal_code}' for {debug_logging_name}"
                 )
-                continue
+                nearest_mrt_info = prev_postal_code_nearest_mrt_info
+            else:
+                nearest_mrt_info = _get_nearest_mrt_info(
+                    postal_code=postal_code,
+                    debug_logging_name=debug_logging_name,
+                    gmaps=gmaps,
+                    mrt_station_map=mrt_station_map,
+                )
 
             _write_full_results_row(
                 full_results_writer=full_results_writer,
@@ -77,7 +85,7 @@ def _full_results_with_mrt_info():
             os.fsync(base_info_file.fileno())
 
         logger.info(
-            f"Successfully exported {num_written} scraped results to {file_util.BASE_INFO_FILENAME}"
+            f"Successfully exported {num_written} scraped results to {file_util.FULL_RESULTS_FILENAME}"
         )
 
 
@@ -119,24 +127,16 @@ class NearestMRTInfo:
     walking_duration_mins: typing.Any
 
 
-def _get_nearest_mrt_info_for_listing(
-    listing_dict, debug_logging_name, gmaps, mrt_station_map
-):
-    postal_code = listing_dict["Postal code"]
-    nearest_mrt_info = _nearest_mrt_info_for_postal_code(
-        postal_code=listing_dict["Postal code"],
-        gmaps=gmaps,
-        mrt_station_map=mrt_station_map,
+def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_map):
+    logger.info(
+        f"Finding nearest MRT info for 'S{postal_code}' for {debug_logging_name}"
     )
-    return nearest_mrt_info
 
-
-def _nearest_mrt_info_for_postal_code(postal_code, gmaps, mrt_station_map):
-    logger.debug(f"Finding nearest MRT info for 'S{postal_code}'")
     postal_code_address = f"{postal_code}, Singapore"
     postal_code_lat, postal_code_lon = gmaps_util.get_lat_lon_from_address(
         gmaps=gmaps, address=postal_code_address
     )
+
     mrt_station_distances_km = [
         (
             mrt_station,
@@ -152,9 +152,11 @@ def _nearest_mrt_info_for_postal_code(postal_code, gmaps, mrt_station_map):
     nearest_mrt_station, nearest_mrt_station_distance_km = min(
         mrt_station_distances_km, key=lambda x: x[1]
     )
+
     logger.debug(
         f"Computed that closest MRT to 'S{postal_code}' is {nearest_mrt_station}"
     )
+
     gmaps_result = gmaps.distance_matrix(
         origins=[postal_code_address],
         destinations=[nearest_mrt_station],
@@ -166,6 +168,7 @@ def _nearest_mrt_info_for_postal_code(postal_code, gmaps, mrt_station_map):
     logger.debug(
         f"Google Maps says that 'S{postal_code}' to {nearest_mrt_station} takes {(duration_seconds / 60):.2f}mins"
     )
+
     return NearestMRTInfo(
         nearest_mrt_station=nearest_mrt_station,
         straight_line_distance_km=nearest_mrt_station_distance_km,
@@ -176,7 +179,7 @@ def _nearest_mrt_info_for_postal_code(postal_code, gmaps, mrt_station_map):
 
 # Based on great-circle distance
 def _haversine_distance_km(lat1, lon1, lat2, lon2):
-    R = 6371.0  # Radius of the Earth in kilometers
+    earth_radius = 6371.0  # Radius of the Earth in kilometers
     lat1_rad = math.radians(lat1)
     lon1_rad = math.radians(lon1)
     lat2_rad = math.radians(lat2)
@@ -187,7 +190,7 @@ def _haversine_distance_km(lat1, lon1, lat2, lon2):
         math.sin(dlat / 2) ** 2
         + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     )
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return earth_radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def _write_full_results_headers(full_results_writer):
@@ -228,7 +231,44 @@ def _write_full_results_headers(full_results_writer):
 
 
 def _write_full_results_row(full_results_writer, listing_dict, nearest_mrt_info):
-    pass
+    full_results_writer.writerow(
+        [
+            # Key info
+            listing_dict["Link"],
+            listing_dict["Address"],
+            listing_dict["Postal code"],
+            listing_dict["HDB type"],
+            listing_dict["Ethnic eligibility"],
+            listing_dict["Area (sqm)"],
+            listing_dict["Price ($)"],
+            listing_dict["Storey range"],
+            listing_dict["Remaining lease (years)"],
+            nearest_mrt_info.nearest_mrt_station,
+            nearest_mrt_info.walking_duration_mins,
+            listing_dict["Last updated date"],
+            listing_dict["Free-form description (provided by seller)"],
+            # Useful info
+            listing_dict["Number of bedrooms"],
+            listing_dict["Number of bathrooms"],
+            listing_dict["Balcony"],
+            listing_dict["Upcoming upgrading plans?"],
+            # Fallback scraped info
+            listing_dict["Sub-address [fallback if postal code is 'None']"],
+            listing_dict["Town [fallback if nearest MRT station is 'None']"],
+            listing_dict[
+                "Remaining lease [fallback if parsed remaining lease is 'None']"
+            ],
+            listing_dict["Last updated [fallback if last updated date is 'None']"],
+            nearest_mrt_info.straight_line_distance_km,
+            nearest_mrt_info.walking_distance_km,
+            # Mostly irrelevant info (for us)
+            listing_dict[
+                "Will seller want to extend their stay (up to 3 months)? [less relevant for us]"
+            ],
+            listing_dict["Enhanced Contra Facility (ECF) Allowed? [irrelevant for us]"],
+            listing_dict["SPR eligibility [irrelevant for us]"],
+        ]
+    )
 
 
 def main():
