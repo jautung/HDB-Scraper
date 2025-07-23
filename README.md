@@ -19,6 +19,7 @@ black .
 ### To run
 
 ```bash
+python3 mrt_precompute.py
 python3 hdb_scraper.py 2>&1 | tee output.txt
 ```
 
