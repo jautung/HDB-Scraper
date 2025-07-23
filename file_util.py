@@ -7,5 +7,6 @@ LISTINGS_FILENAME = "listing_urls.csv"
 BASE_INFO_FILENAME = "listing_info.csv"
 FULL_RESULTS_FILENAME = "listings.csv"
 
+
 def maybe_create_output_folder():
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)

@@ -16,7 +16,7 @@ DELAY_PER_LISTING_LOAD_SECONDS = 1
 RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
-logger = logging.getLogger("HDB Scraper: HDB Base Scrape")
+logger = logging.getLogger("HDB Scraper: HDB Base Scraper")
 
 
 async def _scrape_listings():
@@ -242,7 +242,7 @@ def _write_base_info_row(base_info_writer, listing_info):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MRT Precompute")
+    parser = argparse.ArgumentParser(description="HDB Base Scraper")
     parser.add_argument(
         "--log_level",
         default="INFO",

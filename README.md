@@ -22,7 +22,7 @@ in the event of any unexpected errors (including network errors).
 2. **`hdb_listing_pages.py`**:
    Scrape the URLs of all the HDB resale listings
    - Output into `output/listing_urls.csv`
-3. **`hdb_base_scrape.py`**:
+3. **`hdb_base_scraper.py`**:
    From the list of `listing_urls.csv`, scrape _basic_ information about
    these listings, i.e. whatever is shown on the browser
    (notably _excluding_ nearest MRT information)
@@ -37,7 +37,7 @@ So, running the full sequence will look like:
 ```bash
 python3 mrt_precompute.py
 python3 hdb_listing_pages.py
-python3 hdb_base_scrape.py
+python3 hdb_base_scraper.py
 python3 hdb_scraper.py
 ```
 
@@ -46,7 +46,7 @@ python3 hdb_scraper.py
 ```bash
 python3 mrt_precompute.py --log_level DEBUG 2>&1 | tee output/mrt_precompute_out.txt
 python3 hdb_listing_pages.py --log_level DEBUG 2>&1 | tee output/hdb_listing_pages_out.txt
-python3 hdb_base_scrape.py --log_level DEBUG 2>&1 | tee output/hdb_base_scrape_out.txt
+python3 hdb_base_scraper.py --log_level DEBUG 2>&1 | tee output/hdb_base_scraper_out.txt
 python3 hdb_scraper.py --log_level DEBUG 2>&1 | tee output/hdb_scraper_out.txt
 ```
 

@@ -165,7 +165,7 @@ def _get_paged_rendered_html_browser_page_callback(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MRT Precompute")
+    parser = argparse.ArgumentParser(description="HDB Listing Pages")
     parser.add_argument(
         "--log_level",
         default="INFO",
