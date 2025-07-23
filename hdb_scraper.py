@@ -4,7 +4,6 @@ import csv
 import dataclasses
 import logging
 import os
-import math
 import typing
 import file_util
 import gmaps_util
@@ -140,7 +139,7 @@ def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_ma
     mrt_station_distances_km = [
         (
             mrt_station,
-            _haversine_distance_km(
+            gmaps_util.haversine_distance_km(
                 lat1=postal_code_lat,
                 lon1=postal_code_lon,
                 lat2=mrt_station_lat,
@@ -152,19 +151,15 @@ def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_ma
     nearest_mrt_station, nearest_mrt_station_distance_km = min(
         mrt_station_distances_km, key=lambda x: x[1]
     )
-
     logger.debug(
         f"Computed that closest MRT to 'S{postal_code}' is {nearest_mrt_station}"
     )
 
-    gmaps_result = gmaps.distance_matrix(
-        origins=[postal_code_address],
-        destinations=[nearest_mrt_station],
-        mode="walking",
+    distance_metres, duration_seconds = gmaps_util.get_walking_distance_and_duration(
+        gmaps=gmaps,
+        start=postal_code_address,
+        end=nearest_mrt_station,
     )
-    gmaps_result_inner = gmaps_result["rows"][0]["elements"][0]
-    distance_metres = gmaps_result_inner["distance"]["value"]
-    duration_seconds = gmaps_result_inner["duration"]["value"]
     logger.debug(
         f"Google Maps says that 'S{postal_code}' to {nearest_mrt_station} takes {(duration_seconds / 60):.2f}mins"
     )
@@ -175,22 +170,6 @@ def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_ma
         walking_distance_km=distance_metres / 1000,
         walking_duration_mins=duration_seconds / 60,
     )
-
-
-# Based on great-circle distance
-def _haversine_distance_km(lat1, lon1, lat2, lon2):
-    earth_radius = 6371.0  # Radius of the Earth in kilometers
-    lat1_rad = math.radians(lat1)
-    lon1_rad = math.radians(lon1)
-    lat2_rad = math.radians(lat2)
-    lon2_rad = math.radians(lon2)
-    dlat = lat2_rad - lat1_rad
-    dlon = lon2_rad - lon1_rad
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
-    )
-    return earth_radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def _write_full_results_headers(full_results_writer):
