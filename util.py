@@ -46,5 +46,6 @@ def get_gmaps_client():
 
 def get_lat_lon_from_address(gmaps, address):
     geocode_result = gmaps.geocode(address=address)
+    assert geocode_result is not None
     location = geocode_result[0]["geometry"]["location"]
     return (location["lat"], location["lng"])
