@@ -1,4 +1,4 @@
-# pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,line-too-long,logging-fstring-interpolation,broad-exception-caught
+# pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,too-many-instance-attributes,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import asyncio
 import logging
 import pyppeteer
@@ -13,12 +13,14 @@ class BrowserUtil:
     def __init__(
         self,
         single_browser_run_timeout_seconds,
+        retry_delay_seconds,
         max_attempts_for_network_error,
         max_attempts_for_other_error,
     ):
         self.browser = None
         self.page = None
         self.single_browser_run_timeout_seconds = single_browser_run_timeout_seconds
+        self.retry_delay_seconds = retry_delay_seconds
         self.max_attempts_for_network_error = max_attempts_for_network_error
         self.max_attempts_for_other_error = max_attempts_for_other_error
 
@@ -49,6 +51,7 @@ class BrowserUtil:
                 f"Timeout or network error for {debug_logging_name} (attempt {current_attempt}), retrying!"
             )
             logger.debug(e)
+            await asyncio.sleep(self.retry_delay_seconds)
             return await self.run_with_browser_page_for_url(
                 url=url,
                 callback_on_page=callback_on_page,
@@ -68,6 +71,7 @@ class BrowserUtil:
                 f"Unexpected error for {debug_logging_name} (attempt {current_attempt}), retrying!"
             )
             logger.warning(e)
+            await asyncio.sleep(self.retry_delay_seconds)
             return await self.run_with_browser_page_for_url(
                 url=url,
                 callback_on_page=callback_on_page,

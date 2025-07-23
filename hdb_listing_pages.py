@@ -1,4 +1,4 @@
-# pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,line-too-long,logging-fstring-interpolation,broad-exception-caught
+# pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,too-many-instance-attributes,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import argparse
 import asyncio
 import csv
@@ -11,6 +11,7 @@ import file_util
 HDB_URL_MAIN = "https://homes.hdb.gov.sg/home/finding-a-flat"
 HDB_URL_PREFIX = "https://homes.hdb.gov.sg"
 SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60
+RETRY_DELAY_SECONDS = 60
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
 NEXT_PAGE_WAIT_TIME_SECONDS = 3
@@ -23,6 +24,7 @@ async def _get_listing_urls():
     logger.debug(f"Getting paged HTMLs from {HDB_URL_MAIN}")
     browser = browser_util.BrowserUtil(
         single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
+        retry_delay_seconds=RETRY_DELAY_SECONDS,
         max_attempts_for_network_error=MAX_ATTEMPTS_FOR_NETWORK_ERROR,
         max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
     )
