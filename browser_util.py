@@ -33,7 +33,6 @@ class BrowserUtil:
                     url=url,
                     callback_on_page=callback_on_page,
                     debug_logging_name=debug_logging_name,
-                    current_attempt=current_attempt,
                 ),
                 timeout=self.single_browser_run_timeout_seconds,
             )
@@ -80,7 +79,7 @@ class BrowserUtil:
             self._maybe_close_page()
 
     async def _inner_run_with_browser_page_for_url(
-        self, url, callback_on_page, debug_logging_name, current_attempt
+        self, url, callback_on_page, debug_logging_name
     ):
         self.page = await (await self._get_browser()).newPage()
 

@@ -3,6 +3,7 @@ import os
 
 OUTPUT_FOLDER = "output"
 PRECOMPUTE_FILENAME = "mrt_lat_lon.csv"
+LISTINGS_FILENAME = "listing_urls.csv"
 
 
 def maybe_create_output_folder():

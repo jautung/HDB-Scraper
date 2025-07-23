@@ -61,6 +61,7 @@ def _precompute_mrt_station_map(all_mrt_station_names):
             lat_lon = gmaps_util.get_lat_lon_from_address(
                 gmaps=gmaps, address=f"{mrt_station_name}, Singapore"
             )
+            logger.debug(f"{mrt_station_name} is at {lat_lon}")
             writer.writerow([mrt_station_name, *lat_lon])
 
     logger.info(

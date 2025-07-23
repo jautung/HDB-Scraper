@@ -1,7 +1,9 @@
 # pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import argparse
 import asyncio
+import csv
 import logging
+import os
 import bs4
 import browser_util
 import file_util
@@ -11,6 +13,7 @@ HDB_URL_PREFIX = "https://homes.hdb.gov.sg"
 SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
+NEXT_PAGE_WAIT_TIME_SECONDS = 3
 logger = logging.getLogger("HDB Scraper: HDB Listing Pages")
 
 
@@ -29,27 +32,34 @@ async def _get_listing_urls(browser):
     htmls = [] if htmls is None else htmls
     logger.debug(f"Got {len(htmls)} paged HTMLs from {HDB_URL_MAIN}")
 
-    all_listing_urls = set()
-    for page_index, html in enumerate(htmls):
-        logger.debug(
-            f"Parsing HTML page {page_index+1} of {len(htmls)} from {HDB_URL_MAIN}"
-        )
-        html_soup = bs4.BeautifulSoup(html, "html.parser")
-        listing_urls = [
-            listing_link["href"]
-            for listing_link in html_soup.find_all("a", class_="flat-link")
-        ]
-        listing_urls = [
-            # Many URLs are just encoded as '/home/resale/xxx'
-            HDB_URL_PREFIX + listing_url if listing_url.startswith("/") else listing_url
-            for listing_url in listing_urls
-        ]
-        logger.info(
-            f"Found {len(listing_urls)} listing URLs from page {page_index+1} of {HDB_URL_MAIN}"
-        )
-        all_listing_urls = all_listing_urls | set(listing_urls)
+    with open(
+        os.path.join(file_util.OUTPUT_FOLDER, file_util.LISTINGS_FILENAME),
+        "w",
+        encoding="utf-8",
+    ) as csvfile:
+        writer = csv.writer(csvfile)
+        for page_index, html in enumerate(htmls):
+            logger.debug(
+                f"Parsing HTML page {page_index+1} of {len(htmls)} from {HDB_URL_MAIN}"
+            )
+            html_soup = bs4.BeautifulSoup(html, "html.parser")
 
-    return all_listing_urls
+            listing_urls = [
+                listing_link["href"]
+                for listing_link in html_soup.find_all("a", class_="flat-link")
+            ]
+            listing_urls = [
+                # Many URLs are just encoded as '/home/resale/xxx'
+                HDB_URL_PREFIX + listing_url
+                if listing_url.startswith("/")
+                else listing_url
+                for listing_url in listing_urls
+            ]
+
+            logger.info(
+                f"Found {len(listing_urls)} listing URLs from page {page_index+1} of {HDB_URL_MAIN}"
+            )
+            writer.writerows([[listing_url] for listing_url in listing_urls])
 
 
 async def _click_resale_listings_button(page, debug_logging_name):
@@ -95,7 +105,7 @@ async def _click_next_page_button(page, debug_logging_name):
     logger.debug(f"Clicking on 'next page' button of {debug_logging_name}")
     await next_page_button.click()
     logger.debug(f"Waiting for 'next page' to reload of {debug_logging_name}")
-    await page.waitFor(3000)
+    await page.waitFor(NEXT_PAGE_WAIT_TIME_SECONDS * 1000)
     await page.waitForSelector(".listing-card")
 
     return True
