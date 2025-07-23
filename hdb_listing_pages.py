@@ -17,7 +17,7 @@ NEXT_PAGE_WAIT_TIME_SECONDS = 3
 logger = logging.getLogger("HDB Scraper: HDB Listing Pages")
 
 
-async def _get_listing_urls(browser):
+async def _get_listing_urls():
     logger.info(f"Starting to get all listing URLs from {HDB_URL_MAIN}")
 
     logger.debug(f"Getting paged HTMLs from {HDB_URL_MAIN}")
