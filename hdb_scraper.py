@@ -549,49 +549,20 @@ def _export_to_csv(listings):
 ################################################################
 
 
-async def _scrape_listings(listing_urls):
-    all_listings = []
-    for index, listing_url in enumerate(listing_urls):
-        listing = await _scrape_single_listing(
-            listing_url=listing_url,
-            index_of_listing=index,
-            num_listings=len(listing_urls),
-        )
-        all_listings.append(listing)
-    return all_listings
-
-
-async def _main_scrape_all(gmaps, mrt_station_map):
-    listing_urls = await _get_listing_urls()
-    scraped_listings = await _scrape_listings(listing_urls=listing_urls)
-    # There should be a better place to put this, but leaking the abstraction for now
-    if BROWSER is not None:
-        logger.debug(f"Closing the global browser")
-        await BROWSER.close()
-    else:
-        logger.debug(f"No global browser to close")
-    _augment_listings_with_mrt_info(
-        listings=scraped_listings, gmaps=gmaps, mrt_station_map=mrt_station_map
-    )
-    _export_to_csv(listings=scraped_listings)
-
-
-def _validate_csv_filename(value):
-    if not value.endswith(".csv"):
-        raise argparse.ArgumentTypeError(
-            f"Filename must end with '.csv'; you provided '{value}'"
-        )
-    return value
+# _augment_listings_with_mrt_info(
+#     listings=scraped_listings, gmaps=gmaps, mrt_station_map=mrt_station_map
+# )
+# _export_to_csv(listings=scraped_listings)
 
 
 def main():
     parser = argparse.ArgumentParser(description="HDB Scraper")
-    parser.add_argument(
-        "--output_filename",
-        type=_validate_csv_filename,
-        default="listings.csv",
-        help="Output file name (must end with .csv)",
-    )
+    # parser.add_argument(
+    #     "--output_filename",
+    #     type=_validate_csv_filename,
+    #     default="listings.csv",
+    #     help="Output file name (must end with .csv)",
+    # )
     parser.add_argument(
         "--max_attempts_for_network_error",
         type=int,
