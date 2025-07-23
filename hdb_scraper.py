@@ -12,19 +12,6 @@ import typing
 import browser_util
 import file_util
 
-OUTPUT_FILENAME = "listings.csv"  # Default
-MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5  # Default
-MAX_ATTEMPTS_FOR_OTHER_ERROR = 3  # Default
-SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60  # Default
-DELAY_PER_LISTING_LOAD_SECONDS = 0  # Default
-DELAY_PER_LISTING_FIRST_SECOND_RETRY_LOAD_SECONDS = 30  # Default
-DELAY_PER_LISTING_SUBSEQUENT_RETRIES_LOAD_SECONDS = 60  # Default
-MAX_NUMBER_OF_PAGES = None  # Default
-
-################################################################
-# GOOGLE MAPS START
-################################################################
-
 
 # Based on great-circle distance
 def _haversine_distance_km(lat1, lon1, lat2, lon2):
@@ -119,121 +106,6 @@ def _augment_listings_with_mrt_info(listings, gmaps, mrt_station_map):
         listing.nearest_mrt_info = _get_nearest_mrt_info_for_listing(
             listing=listing, gmaps=gmaps, mrt_station_map=mrt_station_map
         )
-
-
-################################################################
-# GOOGLE MAPS END
-################################################################
-
-################################################################
-# EXPORT START
-################################################################
-
-
-def _export_to_csv(listings):
-    num_written = 0
-    with open(OUTPUT_FILENAME, "w+", newline="", encoding="utf-8") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(
-            [
-                # Key info
-                "Link",
-                "Address",
-                "Postal code",
-                "HDB type",
-                "Ethnic eligibility",
-                "Area (sqm)",
-                "Price ($)",
-                "Storey range",
-                "Remaining lease (years)",
-                "Nearest MRT station",
-                "Walking duration to MRT (mins)",
-                "Last updated date",
-                "Free-form description (provided by seller)",
-                # Useful info
-                "Number of bedrooms",
-                "Number of bathrooms",
-                "Balcony",
-                "Upcoming upgrading plans?",
-                # Fallback scraped info
-                "Sub-address [fallback if postal code is 'None']",
-                "Town [fallback if nearest MRT station is 'None']",
-                "Remaining lease [fallback if parsed remaining lease is 'None']",
-                "Last updated [fallback if last updated date is 'None']",
-                "Straight line distance to MRT (km) [fallback if MRT duration is 'None']",
-                "Walking distance to MRT (km) [fallback if MRT duration is 'None']",
-                # Mostly irrelevant info (for us)
-                "Will seller want to extend their stay (up to 3 months)? [less relevant for us]",
-                "Enhanced Contra Facility (ECF) Allowed? [irrelevant for us]",
-                "SPR eligibility [irrelevant for us]",
-            ]
-        )
-        for listing in listings:
-            if listing is None or isinstance(listing, Exception):
-                logger.warning(f"Skipping a scraped listing {listing}")
-                continue
-            writer.writerow(
-                [
-                    # Key info
-                    listing.listing_url,
-                    listing.header_info.address,
-                    listing.header_info.postal_code,
-                    listing.header_info.hdb_type,
-                    listing.details_info.ethnic_eligibility,
-                    listing.header_info.area,
-                    listing.header_info.price,
-                    listing.details_info.storey_range,
-                    listing.details_info.remaining_lease_num_years,
-                    listing.nearest_mrt_info.nearest_mrt_station
-                    if listing.nearest_mrt_info is not None
-                    else None,
-                    listing.nearest_mrt_info.walking_duration_mins
-                    if listing.nearest_mrt_info is not None
-                    else None,
-                    listing.details_info.last_updated_date,
-                    listing.details_info.description,
-                    # Useful info
-                    listing.details_info.num_bedrooms,
-                    listing.details_info.num_bathrooms,
-                    listing.details_info.balcony,
-                    listing.details_info.upgrading,
-                    # Fallback scraped info
-                    listing.header_info.sub_address,
-                    listing.details_info.town,
-                    listing.details_info.remaining_lease,
-                    listing.details_info.last_updated,
-                    listing.nearest_mrt_info.straight_line_distance_km
-                    if listing.nearest_mrt_info is not None
-                    else None,
-                    listing.nearest_mrt_info.walking_distance_km
-                    if listing.nearest_mrt_info is not None
-                    else None,
-                    # Mostly irrelevant info (for us)
-                    listing.details_info.extension_of_stay,
-                    listing.details_info.contra,
-                    listing.details_info.spr_eligibility,
-                ]
-            )
-            num_written += 1
-
-    logger.info(
-        f"Successfully exported {num_written} scraped results to {OUTPUT_FILENAME}"
-    )
-
-
-################################################################
-# EXPORT END
-################################################################
-
-################################################################
-# MAIN START
-################################################################
-
-
-# _augment_listings_with_mrt_info(
-#     listings=scraped_listings, gmaps=gmaps, mrt_station_map=mrt_station_map
-# )
-# _export_to_csv(listings=scraped_listings)
 
 
 def main():
@@ -336,7 +208,3 @@ if __name__ == "__main__":
     logger.addHandler(handler)
 
     main()
-
-################################################################
-# MAIN END
-################################################################

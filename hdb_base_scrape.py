@@ -48,6 +48,7 @@ async def _scrape_listings():
 
         listing_urls = list(listings_reader)
         num_listings = len(listing_urls)
+        num_written = 0
         for listing_index, listing_row in enumerate(listing_urls):
             assert len(listing_row) == 1
             listing_url = listing_row[0]
@@ -75,11 +76,16 @@ async def _scrape_listings():
             _write_base_info_row(
                 base_info_writer=base_info_writer, listing_info=listing_info
             )
+            num_written += 1
             base_info_file.flush()
             os.fsync(base_info_file.fileno())
 
             # Artificially make this slower so HDB doesn't block us... :)
             await asyncio.sleep(DELAY_PER_LISTING_LOAD_SECONDS)
+
+        logger.info(
+            f"Successfully exported {num_written} scraped results to {file_util.BASE_INFO_FILENAME}"
+        )
 
     await browser.maybe_close_browser()
 
