@@ -105,6 +105,21 @@ class BrowserUtil:
     async def _maybe_close_page(self):
         if self.page is not None:
             logger.debug("Closing page")
-            await self.page.close()
+            try:
+                await self.page.close()
+            except pyppeteer.errors.NetworkError as e:
+                if "Target closed" in str(e):
+                    logger.warning("Page was already closed, ignoring additional close")
+                else:
+                    raise e
+            self.page = None
         else:
             logger.debug("No page to close")
+
+    async def maybe_close_browser(self):
+        if self.browser is not None:
+            logger.debug("Closing browser")
+            await self.browser.close()
+            self.browser = None
+        else:
+            logger.debug("No browser to close")

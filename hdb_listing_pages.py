@@ -21,6 +21,11 @@ async def _get_listing_urls(browser):
     logger.info(f"Starting to get all listing URLs from {HDB_URL_MAIN}")
 
     logger.debug(f"Getting paged HTMLs from {HDB_URL_MAIN}")
+    browser = browser_util.BrowserUtil(
+        single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
+        max_attempts_for_network_error=MAX_ATTEMPTS_FOR_NETWORK_ERROR,
+        max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
+    )
     htmls = await browser.run_with_browser_page_for_url(
         url=HDB_URL_MAIN,
         callback_on_page=_get_paged_rendered_html_browser_page_callback(
@@ -29,6 +34,7 @@ async def _get_listing_urls(browser):
         ),
         debug_logging_name=HDB_URL_MAIN,
     )
+    await browser.maybe_close_browser()
     htmls = [] if htmls is None else htmls
     logger.debug(f"Got {len(htmls)} paged HTMLs from {HDB_URL_MAIN}")
 
@@ -167,12 +173,7 @@ def main():
     logger.setLevel(args.log_level)
 
     file_util.maybe_create_output_folder()
-    browser = browser_util.BrowserUtil(
-        single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
-        max_attempts_for_network_error=MAX_ATTEMPTS_FOR_NETWORK_ERROR,
-        max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
-    )
-    asyncio.run(_get_listing_urls(browser=browser))
+    asyncio.run(_get_listing_urls())
 
 
 if __name__ == "__main__":
