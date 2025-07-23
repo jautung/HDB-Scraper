@@ -90,7 +90,6 @@ class BrowserUtil:
         return await callback_on_page(
             page=self.page,
             debug_logging_name=debug_logging_name,
-            current_attempt=current_attempt,
         )
 
     async def _get_browser(self):
