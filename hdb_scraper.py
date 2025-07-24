@@ -74,6 +74,12 @@ def _full_results_with_mrt_info():
                     mrt_station_map=mrt_station_map,
                 )
 
+            if nearest_mrt_info is None:
+                logger.warning(
+                    f"Skipping {debug_logging_name} because we could not obtain nearest MRT info"
+                )
+                continue
+
             _write_full_results_row(
                 full_results_writer=full_results_writer,
                 listing_dict=listing_dict,
@@ -171,16 +177,13 @@ def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_ma
         logger.warning(
             f"Google Maps unable to find walking distance from 'S{postal_code}' to {nearest_mrt_station}"
         )
+        return None
 
     return NearestMRTInfo(
         nearest_mrt_station=nearest_mrt_station,
         straight_line_distance_km=nearest_mrt_station_distance_km,
-        walking_distance_km=distance_metres / 1000
-        if distance_metres is not None
-        else distance_metres,
-        walking_duration_mins=duration_seconds / 60
-        if duration_seconds is not None
-        else duration_seconds,
+        walking_distance_km=distance_metres / 1000,
+        walking_duration_mins=duration_seconds / 60,
     )
 
 
