@@ -18,8 +18,8 @@ def get_lat_lon_from_address(gmaps, address):
 
 def get_walking_distance_and_duration(gmaps, start, end):
     gmaps_result = gmaps.distance_matrix(
-        origins=[start],
-        destinations=[end],
+        origins=[_adapt_location_name_for_distance_matrix(location_name=start)],
+        destinations=[_adapt_location_name_for_distance_matrix(location_name=end)],
         mode="walking",
     )
     gmaps_result_inner = gmaps_result["rows"][0]["elements"][0]
@@ -29,6 +29,15 @@ def get_walking_distance_and_duration(gmaps, start, end):
         return (distance_metres, duration_seconds)
     assert gmaps_result_inner["status"] == "NOT_FOUND"
     return (None, None)
+
+
+def _adapt_location_name_for_distance_matrix(location_name):
+    if location_name == "HarbourFront MRT station":
+        # Don't ask me why, but Google Maps chokes on the name
+        # "HarbourFront MRT station", and is unable to find a location for that...
+        # "HarbourFront MRT Station (CC29)" is apparently fine though...
+        return "HarbourFront MRT Station (CC29)"
+    return location_name
 
 
 # Approximation, based on great-circle distance
