@@ -23,7 +23,8 @@ def _get_all_mrt_station_names():
 
     # N/B: Wikipedia stores the list of MRT station names in 'tables',
     # each with a link to the dedicated page for the MRT station,
-    # with italicized names being 'future' stations (and are thus excluded)
+    # with italicized names being 'future' stations (and are thus excluded);
+    # this italic <i> tag can be either INSIDE or OUTSIDE the <a> tag, for some reason...
     html_soup = bs4.BeautifulSoup(response.text, "html.parser")
     all_mrt_station_names = set()
     all_tables = html_soup.find_all("table", class_="wikitable sortable")
@@ -38,6 +39,8 @@ def _get_all_mrt_station_names():
             ):
                 continue
             if link.find("i") is not None:
+                continue
+            if link.find_parent("i") is not None:
                 continue
             assert link_href.startswith("/wiki/")
             mrt_station_name = link_href[len("/wiki/") :].replace("_", " ")
