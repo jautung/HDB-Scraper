@@ -168,7 +168,7 @@ def _get_nearest_mrt_info(postal_code, debug_logging_name, gmaps, mrt_station_ma
             f"Google Maps says that 'S{postal_code}' to {nearest_mrt_station} takes {(duration_seconds / 60):.2f}mins"
         )
     else:
-        logger.debug(
+        logger.warning(
             f"Google Maps unable to find walking distance from 'S{postal_code}' to {nearest_mrt_station}"
         )
 
