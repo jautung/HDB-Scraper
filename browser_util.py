@@ -3,6 +3,7 @@ import asyncio
 import logging
 import pyppeteer
 
+FAKE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +17,7 @@ class BrowserUtil:
         retry_delay_seconds,
         max_attempts_for_network_error,
         max_attempts_for_other_error,
+        user_agent=None,
     ):
         self.browser = None
         self.page = None
@@ -23,6 +25,7 @@ class BrowserUtil:
         self.retry_delay_seconds = retry_delay_seconds
         self.max_attempts_for_network_error = max_attempts_for_network_error
         self.max_attempts_for_other_error = max_attempts_for_other_error
+        self.user_agent = user_agent
 
     async def run_with_browser_page_for_url(
         self, url, callback_on_page, debug_logging_name, current_attempt=1
@@ -86,6 +89,8 @@ class BrowserUtil:
         self, url, callback_on_page, debug_logging_name
     ):
         self.page = await (await self._get_browser()).newPage()
+        if self.user_agent is not None:
+            await page.setUserAgent(self.user_agent)
 
         logger.debug(f"Navigating to {debug_logging_name}")
         await self.page.goto(url, waitUntil="networkidle0")
