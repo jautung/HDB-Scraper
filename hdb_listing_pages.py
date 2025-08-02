@@ -30,7 +30,7 @@ async def _get_listing_urls():
     )
     htmls = await browser.run_with_browser_page_for_url(
         url=HDB_URL_MAIN,
-        callback_on_page=_get_paged_rendered_html_browser_page_callback(
+        callback_on_page=browser_util.get_paged_rendered_html_browser_page_callback(
             initial_action=_click_resale_listings_button,
             pagination_action=_click_next_page_button,
         ),
@@ -118,50 +118,6 @@ async def _click_next_page_button(page, debug_logging_name):
     await page.waitForSelector(".listing-card")
 
     return True
-
-
-def _get_paged_rendered_html_browser_page_callback(
-    initial_action=None, pagination_action=None
-):
-    async def _callback(page, debug_logging_name):
-        htmls = []
-
-        if initial_action is not None:
-            await initial_action(page=page, debug_logging_name=debug_logging_name)
-
-        logger.info(f"Extracting rendered HTML from {debug_logging_name} (page 1)")
-        html = await page.content()
-        logger.debug(
-            f"Successfully extracted rendered HTML from {debug_logging_name} (page 1)"
-        )
-        htmls.append(html)
-
-        if pagination_action is not None:
-            page_num = 1
-
-            while True:
-                was_pagination_successful = await pagination_action(
-                    page=page, debug_logging_name=debug_logging_name
-                )
-                if not was_pagination_successful:
-                    logger.info(
-                        f"No more pages from {debug_logging_name} ({page_num} pages total)"
-                    )
-                    break
-                page_num += 1
-
-                logger.info(
-                    f"Extracting rendered HTML from {debug_logging_name} (page {page_num})"
-                )
-                html = await page.content()
-                logger.debug(
-                    f"Successfully extracted rendered HTML from {debug_logging_name} (page {page_num})"
-                )
-                htmls.append(html)
-
-        return htmls
-
-    return _callback
 
 
 def main():
