@@ -28,7 +28,12 @@ class BrowserUtil:
         self.user_agent = user_agent
 
     async def run_with_browser_page_for_url(
-        self, url, callback_on_page, debug_logging_name, current_attempt=1
+        self,
+        url,
+        callback_on_page,
+        debug_logging_name,
+        wait_until="networkidle0",
+        current_attempt=1,
     ):
         await self._maybe_close_page()
 
@@ -38,6 +43,7 @@ class BrowserUtil:
                     url=url,
                     callback_on_page=callback_on_page,
                     debug_logging_name=debug_logging_name,
+                    wait_until=wait_until,
                 ),
                 timeout=self.single_browser_run_timeout_seconds,
             )
@@ -59,6 +65,7 @@ class BrowserUtil:
                 url=url,
                 callback_on_page=callback_on_page,
                 debug_logging_name=debug_logging_name,
+                wait_until=wait_until,
                 current_attempt=current_attempt + 1,
             )
 
@@ -79,6 +86,7 @@ class BrowserUtil:
                 url=url,
                 callback_on_page=callback_on_page,
                 debug_logging_name=debug_logging_name,
+                wait_until=wait_until,
                 current_attempt=current_attempt + 1,
             )
 
@@ -86,14 +94,15 @@ class BrowserUtil:
             await self._maybe_close_page()
 
     async def _inner_run_with_browser_page_for_url(
-        self, url, callback_on_page, debug_logging_name
+        self, url, callback_on_page, debug_logging_name, wait_until
     ):
         self.page = await (await self._get_browser()).newPage()
         if self.user_agent is not None:
+            logger.debug(f"Setting user agent to {self.user_agent}")
             await self.page.setUserAgent(self.user_agent)
 
         logger.debug(f"Navigating to {debug_logging_name}")
-        await self.page.goto(url, waitUntil="networkidle0")
+        await self.page.goto(url, waitUntil=wait_until)
 
         return await callback_on_page(
             page=self.page,
