@@ -6,6 +6,7 @@ PRECOMPUTE_FILENAME = "mrt_lat_lon.csv"
 LISTINGS_FILENAME = "listing_urls.csv"
 BASE_INFO_FILENAME = "listing_info.csv"
 FULL_RESULTS_FILENAME = "listings.csv"
+PG_LISTINGS_FILENAME = "pg_listing_urls.csv"
 
 
 def maybe_create_output_folder():

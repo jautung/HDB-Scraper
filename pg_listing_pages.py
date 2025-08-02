@@ -2,7 +2,9 @@
 import argparse
 import asyncio
 import logging
-import pyppeteer
+import re
+import sys
+import bs4
 import browser_util
 import file_util
 
@@ -36,14 +38,44 @@ async def _get_listing_urls():
     )
     await browser.maybe_close_browser()
     htmls = [] if htmls is None else htmls
-    print(len(htmls))
-    print("Bot page?", "Verifying you are human." in htmls[0])
-    print("Success?", "Contact Agent" in htmls[0])
+    logger.debug(f"Got {len(htmls)} paged HTMLs from {PROPERTY_GURU_URL}")
+
+    for page_index, html in enumerate(htmls):
+        logger.debug(
+            f"Parsing HTML page {page_index+1} of {len(htmls)} from {PROPERTY_GURU_URL}"
+        )
+        html_soup = bs4.BeautifulSoup(html, "html.parser")
+
+        listing_urls = [
+            _parse_and_normalize_listing(listing_link["href"])
+            for listing_link in html_soup.find_all("a", class_="listing-card-link")
+        ]
+        # TODO
+        print(listing_urls)
+
+        logger.info(
+            f"Found {len(listing_urls)} listing URLs from page {page_index+1} of {PROPERTY_GURU_URL}"
+        )
 
 
 async def _click_next_page_button(page, debug_logging_name):
     # TODO
+    # Actually probably change this to check for largest page number and just iterate instead
     return False
+
+
+LISTING_PATTERN = r"^https://www\.propertyguru\.com\.sg/listing/(?:.*-)?(\d+)$"
+
+
+def _parse_and_normalize_listing(link):
+    match = re.search(LISTING_PATTERN, link)
+    if match is None:
+        logger.error(
+            f"Link {link} did not match the listing pattern; this should not be possible; exiting!"
+        )
+        sys.exit(1)
+    assert match is not None
+    return f"https://www.propertyguru.com.sg/listing/{match.group(1)}"
 
 
 def main():
