@@ -90,7 +90,7 @@ class BrowserUtil:
     ):
         self.page = await (await self._get_browser()).newPage()
         if self.user_agent is not None:
-            await page.setUserAgent(self.user_agent)
+            await self.page.setUserAgent(self.user_agent)
 
         logger.debug(f"Navigating to {debug_logging_name}")
         await self.page.goto(url, waitUntil="networkidle0")

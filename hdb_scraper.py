@@ -274,16 +274,14 @@ def main():
         help="Set the logging level (default: INFO)",
     )
     args = parser.parse_args()
-    logger.setLevel(args.log_level)
+    logging.basicConfig(
+        level=args.log_level,
+        format="%(asctime)s (%(name)s) [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
     _full_results_with_mrt_info()
 
 
 if __name__ == "__main__":
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
-    )
-    logger.addHandler(handler)
-
     main()
