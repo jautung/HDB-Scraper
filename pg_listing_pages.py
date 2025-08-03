@@ -27,6 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_listing_urls():
+    browser = browser_util.BrowserUtil(
+        single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
+        retry_delay_seconds=RETRY_DELAY_SECONDS,
+        max_attempts_for_network_error=MAX_ATTEMPTS_FOR_NETWORK_ERROR,
+        max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
+        user_agent=browser_util.FAKE_USER_AGENT,
+    )
     with open(
         os.path.join(file_util.OUTPUT_FOLDER, file_util.PG_LISTINGS_FILENAME),
         "w",
@@ -35,18 +42,14 @@ async def _get_listing_urls():
     ) as csvfile:
         writer = csv.writer(csvfile)
         for base_page in PROPERTY_GURU_URLS:
-            await _get_listing_urls_from_base_page(base_page=base_page, writer=writer)
+            await _get_listing_urls_from_base_page(
+                browser=browser, base_page=base_page, writer=writer
+            )
+    await browser.maybe_close_browser()
 
 
-async def _get_listing_urls_from_base_page(base_page, writer):
+async def _get_listing_urls_from_base_page(browser, base_page, writer):
     logger.info(f"Starting to get all listing URLs from {base_page}")
-    browser = browser_util.BrowserUtil(
-        single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
-        retry_delay_seconds=RETRY_DELAY_SECONDS,
-        max_attempts_for_network_error=MAX_ATTEMPTS_FOR_NETWORK_ERROR,
-        max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
-        user_agent=browser_util.FAKE_USER_AGENT,
-    )
 
     num_pages = await _get_num_pages(browser=browser, base_page=base_page)
     logger.info(f"Number of pages is {num_pages}")
@@ -57,8 +60,6 @@ async def _get_listing_urls_from_base_page(base_page, writer):
             browser=browser, page_url=f"{base_page}/{page_num}"
         )
         writer.writerows([[listing_url] for listing_url in listing_urls])
-
-    await browser.maybe_close_browser()
 
 
 async def _get_num_pages(browser, base_page):
