@@ -2,6 +2,8 @@
 
 A way to get all the listings from the [HDB resale portal](https://homes.hdb.gov.sg/home/finding-a-flat).
 
+Currently adding more capabilities to get listings from [PropertyGuru](https://www.propertyguru.com.sg/property-for-sale) as well.
+
 ## To check credits
 
 - [Metrics](https://console.cloud.google.com/google/maps-apis/metrics?project=first-server-449508-n0&inv=1&invt=Ab3etw).
@@ -9,7 +11,7 @@ A way to get all the listings from the [HDB resale portal](https://homes.hdb.gov
 
 ## Usage
 
-### To run
+### To run (HDB resale portal)
 
 This is intentionally written to be run in multiple stages,
 with checkpointing output `.csv`s along the way,
@@ -41,13 +43,20 @@ python3 hdb_base_scraper.py
 python3 hdb_scraper.py
 ```
 
-### To debug
+### To debug (HDB resale portal)
 
 ```bash
 python3 mrt_precompute.py --log_level DEBUG 2>&1 | tee output/mrt_precompute_out.txt
 python3 hdb_listing_pages.py --log_level DEBUG 2>&1 | tee output/hdb_listing_pages_out.txt
 python3 hdb_base_scraper.py --log_level DEBUG 2>&1 | tee output/hdb_base_scraper_out.txt
 python3 hdb_scraper.py --log_level DEBUG 2>&1 | tee output/hdb_scraper_out.txt
+```
+
+### To run (PropertyGuru)
+
+```bash
+python3 mrt_precompute.py
+python3 pg_listing_pages.py
 ```
 
 ### To lint
