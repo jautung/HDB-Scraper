@@ -1,27 +1,23 @@
 # pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,too-many-locals,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import argparse
 import asyncio
-import csv
-import dataclasses
-import json
 import logging
-import os
-import re
-import typing
 import bs4
 import browser_util
 import file_util
+import pg_parsing_util
 
 SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60
 DELAY_PER_LISTING_LOAD_SECONDS = 1
 RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
+MAX_ATTEMPTS_FOR_CLOUDFLARE_WAIT = 5
 MRT_DISTANCE_PATTERN = r"^([\d.]+) (m|km) \((\d+) mins\) from ([A-Z]+\d+) .+$"
 logger = logging.getLogger(__name__)
 
 
-async def _xcxc_scrape_all():
+async def _scrape_listings():
     browser = browser_util.BrowserUtil(
         single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
         retry_delay_seconds=RETRY_DELAY_SECONDS,
@@ -29,6 +25,7 @@ async def _xcxc_scrape_all():
         max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
         user_agent=browser_util.FAKE_USER_AGENT,
     )
+    # TODO Actually write this properly (read/write from/to files)
     await _scrape_single_listing(
         listing_url="https://www.propertyguru.com.sg/listing/60034673", browser=browser
     )
@@ -38,151 +35,51 @@ async def _xcxc_scrape_all():
     await _scrape_single_listing(
         listing_url="https://www.propertyguru.com.sg/listing/25559652", browser=browser
     )
+    await browser.maybe_close_browser()
 
 
-async def _scrape_single_listing(listing_url, browser):
-    logger.info(f"Starting to scrape {listing_url}")
+async def _scrape_single_listing(listing_url, browser, current_attempt=1):
+    logger.info(f"Starting to scrape {listing_url} (attempt {current_attempt})")
+
+    logger.debug(f"Getting rendered HTML of {listing_url}")
     html = await browser.run_with_browser_page_for_url(
         url=listing_url,
         callback_on_page=browser_util.get_single_rendered_html_browser_page_callback(),
         debug_logging_name=listing_url,
         wait_until="domcontentloaded",
     )
+    if html is None:
+        return None
+
+    logger.debug(f"Parsing HTML of {listing_url}")
     html_soup = bs4.BeautifulSoup(html, "html.parser")
 
     # Somewhat helpfully, this element already contains all the semantic data that is used
-    # to populate the UI of the website, in a huge JSON blob. Unclear if this is intended/secure,
-    # but I'll take it! :)
+    # to populate the UI of the website, in a huge JSON blob.
+    # Unclear if this is intended/secure, but I'll take it! :)
     script_data_element = html_soup.find(
         "script", {"id": "__NEXT_DATA__", "type": "application/json"}
     )
     if script_data_element is None:
-        print("Script data tag not found")
-        print("Contains verifying?", "Verifying" in html)
-        print("Contains waiting?", "Just a moment..." in html)
-        # TODO: Probably just retry if we hit this...
-        if "Just a moment..." not in html:
-            print(html)
-        return None
-    json_data = script_data_element.string
-    try:
-        data = json.loads(json_data)
-        main_data = data["props"]["pageProps"]["pageData"]["data"]
-
-        overview_data = main_data["propertyOverviewData"]
-        print("verifiedListingBadge", overview_data["verifiedListingBadge"])
-        header_info = overview_data["propertyInfo"]
-        title = header_info["title"]
-        address = header_info["fullAddress"]
-        price_info = header_info["price"]
-        price_amount = text_to_price(price_info["amount"])
-        price_type = price_info["priceType"]
-        print(price_type)
-        header_info_2 = header_info["amenities"]
-        # Probably parse this better
-        # print(header_info_2)
-        assert len(header_info_2) == 3
-        assert header_info_2[0]["iconSrc"] == "bed-o"
-        num_bedrooms = header_info_2[0]["value"]
-        assert header_info_2[1]["iconSrc"] == "bath-o"
-        num_bathrooms = header_info_2[1]["value"]
-        assert header_info_2[2]["iconSrc"] == "ruler-o"
-        num_sqft = header_info_2[2]["value"]
-
-        location_data = main_data["listingLocationData"]["data"]
-        location_lat = location_data["center"]["lat"]
-        location_lon = location_data["center"]["lng"]
-        # Need to find the first one that is not 'isFuture'
-        for nm in location_data["nearestMRTs"]:
-            print(
-                nm["id"],
-                nm["isFutureLine"],
-                nm["distance"]["value"],
-                "m",
-                nm["duration"]["value"],
-                "seconds",
+        logger.info(f"Script data tag not found for {listing_url}")
+        if "Just a moment..." in html:
+            if current_attempt < MAX_ATTEMPTS_FOR_CLOUDFLARE_WAIT:
+                return await _scrape_single_listing(
+                    listing_url=listing_url,
+                    browser=browser,
+                    current_attempt=current_attempt + 1,
+                )
+            logger.error(
+                f"Hit 'Just a moment...' Cloudflare page after {MAX_ATTEMPTS_FOR_CLOUDFLARE_WAIT} attempts; giving up on {listing_url}!"
             )
-
-        details_data = main_data["detailsData"]["metatable"]["items"]
-        # Assume this is always in the right order?
-        print([(d["icon"], d["value"]) for d in details_data])
-
-        description_data = main_data["descriptionBlockData"]
-        description_subtitle = description_data["subtitle"]
-        description_details = description_data["description"]
-
-        # listingData
-        listing_data = main_data["listingData"]
-        # This also has a lot of fields of the above stuff, maybe we should've been using this instead
-        listing_data["price"]
-        listing_data["propertyName"]
-        listing_data["localizedTitle"]
-        listing_data["bedrooms"]
-        listing_data["bathrooms"]
-        listing_data["floorArea"]
-        listing_data["postcode"]
-        listing_data["districtCode"]
-        listing_data["regionCode"]
-        listing_data["tenure"]
-        listing_data["hdbTypeCode"]
-        listing_data["hdbEstateText"]
-        listing_data["streetName"]
-        listing_data["lastPosted"]["unix"]
-
-        # Maybe agent can be None? unclear...
-        listing_data["agent"]["name"]
-        main_data["contactAgentData"]["contactAgentCard"]["agency"]["name"]
-        main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
-            "name"
-        ]
-        main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
-            "avatar"
-        ]
-        # Needs https://www.propertyguru.com.sg/listing/ prefix again
-        main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
-            "profileUrl"
-        ]
-
-        # EXTRA STUFF BELOW HERE MIGHT AS WELL SINCE IT IS SO EASY
-
-        amenities_data = main_data["amenitiesData"]["data"]
-        # Maybe dedupe this?
-        print("amenities", [a["text"] for a in amenities_data])
-
-        main_image = main_data["metadata"]["metaTags"]["openGraph"]["image"]
-        print("main_image", main_image)
-
-        media_data = main_data["mediaGalleryData"]["media"]
-        image_links = [i["src"] for i in media_data["images"]["items"]]
-        floor_plan_links = [i["src"] for i in media_data["floorPlans"]["items"]]
-        # Should definitely de-dupe these images
-        media_explorer_data = main_data["mediaExplorerData"]["mediaGroups"]
-        image_links_2 = [i["src"] for i in media_explorer_data["images"]["items"]]
-        floor_plan_links_2 = [
-            i["src"] for i in media_explorer_data["floorPlans"]["items"]
-        ]
-
-        faq_data = main_data["faqData"]["list"]
-        faq_info = "\n\n".join([f["question"] + "\n" + f["answer"] for f in faq_data])
-        # print(faq_info)
-
-    except (json.JSONDecodeError, KeyError) as e:
-        print("Failed to parse JSON content from script data tag")
-        print(e)
+            return None
+        logger.error(f"Giving up on {listing_url}!")
         return None
 
-
-def text_to_price(text):
-    if not text.startswith("S$ "):
-        return None
-    return text_to_num(text[3:])
-
-
-def text_to_num(text):
-    try:
-        return int(text.replace(",", ""))
-    except ValueError:
-        return None
+    logger.info(f"Finished scraping {listing_url}")
+    return pg_parsing_util.parse_script_data_element(
+        script_data_element=script_data_element
+    )
 
 
 def main():
@@ -201,7 +98,7 @@ def main():
     )
 
     file_util.maybe_create_output_folder()
-    asyncio.run(_xcxc_scrape_all())
+    asyncio.run(_scrape_listings())
 
 
 if __name__ == "__main__":
