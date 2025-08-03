@@ -27,11 +27,18 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_listing_urls():
-    for base_page in PROPERTY_GURU_URLS:
-        await _get_listing_urls_from_base_page(base_page=base_page)
+    with open(
+        os.path.join(file_util.OUTPUT_FOLDER, file_util.PG_LISTINGS_FILENAME),
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as csvfile:
+        writer = csv.writer(csvfile)
+        for base_page in PROPERTY_GURU_URLS:
+            await _get_listing_urls_from_base_page(base_page=base_page, writer=writer)
 
 
-async def _get_listing_urls_from_base_page(base_page):
+async def _get_listing_urls_from_base_page(base_page, writer):
     logger.info(f"Starting to get all listing URLs from {base_page}")
     browser = browser_util.BrowserUtil(
         single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
@@ -44,19 +51,12 @@ async def _get_listing_urls_from_base_page(base_page):
     num_pages = await _get_num_pages(browser=browser, base_page=base_page)
     logger.info(f"Number of pages is {num_pages}")
 
-    with open(
-        os.path.join(file_util.OUTPUT_FOLDER, file_util.PG_LISTINGS_FILENAME),
-        "w",
-        newline="",
-        encoding="utf-8",
-    ) as csvfile:
-        writer = csv.writer(csvfile)
-        for page_num in range(1, num_pages + 1):
-            logger.info(f"Getting listing URLs from page {page_num}/{num_pages}")
-            listing_urls = await _get_listing_urls_from_page(
-                browser=browser, page_url=f"{base_page}/{page_num}"
-            )
-            writer.writerows([[listing_url] for listing_url in listing_urls])
+    for page_num in range(1, num_pages + 1):
+        logger.info(f"Getting listing URLs from page {page_num}/{num_pages}")
+        listing_urls = await _get_listing_urls_from_page(
+            browser=browser, page_url=f"{base_page}/{page_num}"
+        )
+        writer.writerows([[listing_url] for listing_url in listing_urls])
 
     await browser.maybe_close_browser()
 
