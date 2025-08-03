@@ -13,13 +13,12 @@ SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60
 RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
+LISTING_PATTERN = r"^https://www\.propertyguru\.com\.sg/listing/(?:.*-)?(\d+)$"
 logger = logging.getLogger(__name__)
 
 
 async def _get_listing_urls():
     logger.info(f"Starting to get all listing URLs from {PROPERTY_GURU_URL}")
-
-    logger.debug(f"Getting paged HTMLs from {PROPERTY_GURU_URL}")
     browser = browser_util.BrowserUtil(
         single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
         retry_delay_seconds=RETRY_DELAY_SECONDS,
@@ -27,44 +26,72 @@ async def _get_listing_urls():
         max_attempts_for_other_error=MAX_ATTEMPTS_FOR_OTHER_ERROR,
         user_agent=browser_util.FAKE_USER_AGENT,
     )
-    htmls = await browser.run_with_browser_page_for_url(
+
+    num_pages = await _get_num_pages(browser=browser)
+    logger.info(f"Number of pages is {num_pages}")
+
+    listing_urls = []
+    for page_num in range(1, min(3, num_pages + 1)):  # TODO
+        logger.info(f"Getting listing URLs from page {page_num}/{num_pages}")
+        listing_urls.append(
+            await _get_listing_urls_from_page(
+                browser=browser, page_url=f"{PROPERTY_GURU_URL}/{page_num}"
+            )
+        )
+
+    await browser.maybe_close_browser()
+    return listing_urls
+
+
+async def _get_num_pages(browser):
+    logger.info(
+        f"Reading the first main page {PROPERTY_GURU_URL} to determine the number of pages"
+    )
+    html = await browser.run_with_browser_page_for_url(
         url=PROPERTY_GURU_URL,
-        callback_on_page=browser_util.get_paged_rendered_html_browser_page_callback(
-            initial_action=None,
-            pagination_action=_click_next_page_button,
-        ),
+        callback_on_page=browser_util.get_single_rendered_html_browser_page_callback(),
         debug_logging_name=PROPERTY_GURU_URL,
         wait_until="domcontentloaded",
     )
-    await browser.maybe_close_browser()
-    htmls = [] if htmls is None else htmls
-    logger.debug(f"Got {len(htmls)} paged HTMLs from {PROPERTY_GURU_URL}")
 
-    for page_index, html in enumerate(htmls):
-        logger.debug(
-            f"Parsing HTML page {page_index+1} of {len(htmls)} from {PROPERTY_GURU_URL}"
-        )
-        html_soup = bs4.BeautifulSoup(html, "html.parser")
+    logger.debug(f"Parsing HTML of the first main page of {PROPERTY_GURU_URL}")
+    html_soup = bs4.BeautifulSoup(html, "html.parser")
+    pagination_bar = html_soup.find("ul", {"class": "hui-pagination"})
+    pagination_links = pagination_bar.find_all("a", class_="page-link")
 
-        listing_urls = [
-            _parse_and_normalize_listing(listing_link["href"])
-            for listing_link in html_soup.find_all("a", class_="listing-card-link")
-        ]
-        # TODO
-        print(listing_urls)
-
-        logger.info(
-            f"Found {len(listing_urls)} listing URLs from page {page_index+1} of {PROPERTY_GURU_URL}"
-        )
+    logger.debug(f"Found {len(pagination_links)} pagination links")
+    page_nums = [
+        _parse_and_get_page_num(pagination_link=pagination_link)
+        for pagination_link in pagination_links
+    ]
+    return max(n for n in page_nums if n is not None)
 
 
-async def _click_next_page_button(page, debug_logging_name):
-    # TODO
-    # Actually probably change this to check for largest page number and just iterate instead
-    return False
+def _parse_and_get_page_num(pagination_link):
+    try:
+        return int(pagination_link.get_text(strip=True))
+    except ValueError:
+        return None
 
 
-LISTING_PATTERN = r"^https://www\.propertyguru\.com\.sg/listing/(?:.*-)?(\d+)$"
+async def _get_listing_urls_from_page(browser, page_url):
+    logger.debug(f"Getting HTML from {page_url}")
+    html = await browser.run_with_browser_page_for_url(
+        url=page_url,
+        callback_on_page=browser_util.get_single_rendered_html_browser_page_callback(),
+        debug_logging_name=page_url,
+        wait_until="domcontentloaded",
+    )
+
+    logger.debug(f"Parsing HTML of {page_url}")
+    html_soup = bs4.BeautifulSoup(html, "html.parser")
+    listing_urls = [
+        _parse_and_normalize_listing(link=listing_link["href"])
+        for listing_link in html_soup.find_all("a", class_="listing-card-link")
+    ]
+
+    logger.info(f"Found {len(listing_urls)} listing URLs from {page_url}")
+    return listing_urls
 
 
 def _parse_and_normalize_listing(link):
