@@ -76,10 +76,11 @@ async def _scrape_single_listing(listing_url, browser, current_attempt=1):
         logger.error(f"Giving up on {listing_url}!")
         return None
 
-    logger.info(f"Finished scraping {listing_url}")
-    return pg_parsing_util.parse_script_data_element(
-        script_data_element=script_data_element
+    listing_info = pg_parsing_util.parse_script_data_element(
+        script_data_element=script_data_element, debug_logging_name=listing_url
     )
+    logger.info(f"Finished scraping {listing_url}")
+    return listing_info
 
 
 def main():
