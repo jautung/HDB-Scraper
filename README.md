@@ -57,6 +57,7 @@ python3 hdb_scraper.py --log_level DEBUG 2>&1 | tee output/hdb_scraper_out.txt
 ```bash
 python3 mrt_precompute.py
 python3 pg_listing_pages.py
+python3 pg_base_scraper.py
 ```
 
 ### To lint

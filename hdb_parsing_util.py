@@ -62,7 +62,7 @@ def parse_header_info(html_soup):
 
 def _find_simple_text(html_soup, tag_type, attr_regex, debug_logging_name):
     logger.debug(f"Starting to find simple text for {debug_logging_name}")
-    elements = html_soup.find_all(tag_type)
+    elements = html_soup.find_all(name=tag_type)
     for element in elements:
         logger.debug(f"Checking element for {debug_logging_name}: {element}")
         if any(attr_regex.match(attr_keys) for attr_keys in element.attrs.keys()):
