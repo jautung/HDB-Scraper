@@ -75,19 +75,27 @@ def _parse_header_info(main_data, listing_url):
         print(price_type)
 
     header_info_2 = header_info["amenities"]  # Misnomer name
-    # TODO: Probably parse this better
+    # TODO: Probably parse this better and remove all the asserts
     assert len(header_info_2) == 3
     assert header_info_2[0]["iconSrc"] == "bed-o"
-    num_bedrooms = header_info_2[0]["value"]
+    num_bedrooms = text_to_num(header_info_2[0]["value"])
     assert header_info_2[1]["iconSrc"] == "bath-o"
-    num_bathrooms = header_info_2[1]["value"]
+    num_bathrooms = text_to_num(header_info_2[1]["value"])
     assert header_info_2[2]["iconSrc"] == "ruler-o"
-    num_sqft = header_info_2[2]["value"]
+    num_sqft = text_to_num(header_info_2[2]["value"])
 
     is_verified = overview_data["verifiedListingBadge"] is not None
     if is_verified:
         # TODO: For now, I'm curious, we remove this later
         print(overview_data["verifiedListingBadge"])
+
+    # Maybe just warn on these instead of crashing?
+    assert listing_data["localizedTitle"] == header_info["title"]
+    assert listing_data["propertyName"] == header_info["fullAddress"]
+    assert listing_data["price"] == text_to_price(price_info["amount"])
+    assert listing_data["bedrooms"] == num_bedrooms
+    assert listing_data["bathrooms"] == num_bathrooms
+    assert listing_data["floorArea"] == num_sqft
 
     return HeaderInfo(
         title=header_info["title"],
@@ -120,6 +128,7 @@ def _parse_details_info(main_data, listing_url):
 
     details_data = main_data["detailsData"]["metatable"]["items"]
     # Assume this is always in the right order?
+    # TODO: This needs a lot of parsing
     print([(d["icon"], d["value"]) for d in details_data])
 
     description_data = main_data["descriptionBlockData"]
@@ -129,12 +138,6 @@ def _parse_details_info(main_data, listing_url):
     # listingData
     listing_data = main_data["listingData"]
     # This also has a lot of fields of the above stuff, maybe we should've been using this instead
-    listing_data["price"]
-    listing_data["propertyName"]
-    listing_data["localizedTitle"]
-    listing_data["bedrooms"]
-    listing_data["bathrooms"]
-    listing_data["floorArea"]
     listing_data["districtCode"]
     listing_data["regionCode"]
     listing_data["tenure"]
