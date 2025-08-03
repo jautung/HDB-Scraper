@@ -60,8 +60,9 @@ async def _scrape_single_listing(listing_url, browser):
         print("Script data tag not found")
         print("Contains verifying?", "Verifying" in html)
         print("Contains waiting?", "Just a moment..." in html)
-        # Probably just retry if we hit this...
-        print(html)
+        # TODO: Probably just retry if we hit this...
+        if "Just a moment..." not in html:
+            print(html)
         return None
     json_data = script_data_element.string
     try:
