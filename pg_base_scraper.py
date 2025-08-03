@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import csv
 import dataclasses
+import json
 import logging
 import os
 import re
@@ -47,108 +48,223 @@ async def _scrape_single_listing(listing_url, browser):
         debug_logging_name=listing_url,
         wait_until="domcontentloaded",
     )
-    # print(html)
-    print("Contains verifying?", "Verifying" in html)
     html_soup = bs4.BeautifulSoup(html, "html.parser")
-    # print(html_soup.find_all(name="h1", attrs={"da-id": "property-title"}))
-    # print(html_soup.find_all(name="p", attrs={"da-id": "property-address"}))
-    # print(html_soup.find_all(name="h2", attrs={"da-id": "price-amount"}))
-    # print(html_soup.find_all(name="span", attrs={"da-id": "price-type"}))
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="h1",
-            da_id="property-title",
-            debug_logging_name="property-title",
-            transform=get_text_transform,
-        )
+
+    # Somewhat helpfully, this element already contains all the semantic data that is used
+    # to populate the UI of the website, in a huge JSON blob. Unclear if this is intended/secure,
+    # but I'll take it! :)
+    script_data_element = html_soup.find(
+        "script", {"id": "__NEXT_DATA__", "type": "application/json"}
     )
-    if (
-        _find_element(
-            html_soup=html_soup,
-            tag_name="h1",
-            da_id="property-title",
-            debug_logging_name="property-title",
-            transform=get_text_transform,
-        )
-        is None
-    ):
+    if script_data_element is None:
+        print("Script data tag not found")
+        print("Contains verifying?", "Verifying" in html)
+        print("Contains waiting?", "Just a moment..." in html)
+        # Probably just retry if we hit this...
         print(html)
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="p",
-            da_id="property-address",
-            debug_logging_name="property-address",
-            transform=get_text_transform,
-        )
-    )
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="h2",
-            da_id="price-amount",
-            debug_logging_name="price-amount",
-            transform=get_price_transform,
-        )
-    )
-    # This one is either "Negotiable" or None
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="span",
-            da_id="price-type",
-            debug_logging_name="price-type",
-            transform=get_text_transform,
-        )
-    )
+        return None
+    json_data = script_data_element.string
+    try:
+        data = json.loads(json_data)
+        main_data = data["props"]["pageProps"]["pageData"]["data"]
 
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="div",
-            da_id="bedroom-amenity",
-            debug_logging_name="bedroom-amenity",
-            transform=get_amenity_num_transform,
-        )
-    )
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="div",
-            da_id="bathroom-amenity",
-            debug_logging_name="bathroom-amenity",
-            transform=get_amenity_num_transform,
-        )
-    )
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="div",
-            da_id="area-amenity",
-            debug_logging_name="area-amenity",
-            transform=get_amenity_num_transform,
-        )
-    )
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="div",
-            da_id="psf-amenity",
-            debug_logging_name="psf-amenity",
-            transform=get_amenity_price_transform,
-        )
-    )
+        overview_data = main_data["propertyOverviewData"]
+        print("verifiedListingBadge", overview_data["verifiedListingBadge"])
+        header_info = overview_data["propertyInfo"]
+        title = header_info["title"]
+        address = header_info["fullAddress"]
+        price_info = header_info["price"]
+        price_amount = text_to_price(price_info["amount"])
+        price_type = price_info["priceType"]
+        print(price_type)
+        header_info_2 = header_info["amenities"]
+        # Probably parse this better
+        # print(header_info_2)
+        assert len(header_info_2) == 3
+        assert header_info_2[0]["iconSrc"] == "bed-o"
+        num_bedrooms = header_info_2[0]["value"]
+        assert header_info_2[1]["iconSrc"] == "bath-o"
+        num_bathrooms = header_info_2[1]["value"]
+        assert header_info_2[2]["iconSrc"] == "ruler-o"
+        num_sqft = header_info_2[2]["value"]
 
-    print(
-        _find_element(
-            html_soup=html_soup,
-            tag_name="p",
-            da_id="mrt-distance-text",
-            debug_logging_name="mrt-distance-text",
-            transform=get_mrt_distance_text_transform,
-        )
-    )
+        location_data = main_data["listingLocationData"]["data"]
+        location_lat = location_data["center"]["lat"]
+        location_lon = location_data["center"]["lng"]
+        # Need to find the first one that is not 'isFuture'
+        for nm in location_data["nearestMRTs"]:
+            print(
+                nm["id"],
+                nm["isFutureLine"],
+                nm["distance"]["value"],
+                "m",
+                nm["duration"]["value"],
+                "seconds",
+            )
+
+        details_data = main_data["detailsData"]["metatable"]["items"]
+        # Assume this is always in the right order?
+        print([(d["icon"], d["value"]) for d in details_data])
+
+        description_data = main_data["descriptionBlockData"]
+        description_subtitle = description_data["subtitle"]
+        description_details = description_data["description"]
+
+        # listingData
+        listing_data = main_data["listingData"]
+        # This also has a lot of fields of the above stuff, maybe we should've been using this instead
+        listing_data["price"]
+        listing_data["propertyName"]
+        listing_data["localizedTitle"]
+        listing_data["bedrooms"]
+        listing_data["bathrooms"]
+        listing_data["floorArea"]
+        listing_data["postcode"]
+        listing_data["districtCode"]
+        listing_data["regionCode"]
+        listing_data["tenure"]
+        listing_data["hdbTypeCode"]
+        listing_data["hdbEstateText"]
+        listing_data["streetName"]
+        listing_data["lastPosted"]["unix"]
+
+        # Maybe agent can be None? unclear...
+        listing_data["agent"]["name"]
+        main_data["contactAgentData"]["contactAgentCard"]["agency"]["name"]
+        main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
+            "name"
+        ]
+        main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
+            "avatar"
+        ]
+        # Needs https://www.propertyguru.com.sg/listing/ prefix again
+        main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
+            "profileUrl"
+        ]
+
+        # EXTRA STUFF BELOW HERE MIGHT AS WELL SINCE IT IS SO EASY
+
+        amenities_data = main_data["amenitiesData"]["data"]
+        # Maybe dedupe this?
+        print("amenities", [a["text"] for a in amenities_data])
+
+        main_image = main_data["metadata"]["metaTags"]["openGraph"]["image"]
+        print("main_image", main_image)
+
+        media_data = main_data["mediaGalleryData"]["media"]
+        image_links = [i["src"] for i in media_data["images"]["items"]]
+        floor_plan_links = [i["src"] for i in media_data["floorPlans"]["items"]]
+        # Should definitely de-dupe these images
+        media_explorer_data = main_data["mediaExplorerData"]["mediaGroups"]
+        image_links_2 = [i["src"] for i in media_explorer_data["images"]["items"]]
+        floor_plan_links_2 = [
+            i["src"] for i in media_explorer_data["floorPlans"]["items"]
+        ]
+
+        faq_data = main_data["faqData"]["list"]
+        faq_info = "\n\n".join([f["question"] + "\n" + f["answer"] for f in faq_data])
+        # print(faq_info)
+
+    except (json.JSONDecodeError, KeyError) as e:
+        print("Failed to parse JSON content from script data tag")
+        print(e)
+        return None
+
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="h1",
+    #         da_id="property-title",
+    #         debug_logging_name="property-title",
+    #         transform=get_text_transform,
+    #     )
+    # )
+    # if (
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="h1",
+    #         da_id="property-title",
+    #         debug_logging_name="property-title",
+    #         transform=get_text_transform,
+    #     )
+    #     is None
+    # ):
+    #     print(html)
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="p",
+    #         da_id="property-address",
+    #         debug_logging_name="property-address",
+    #         transform=get_text_transform,
+    #     )
+    # )
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="h2",
+    #         da_id="price-amount",
+    #         debug_logging_name="price-amount",
+    #         transform=get_price_transform,
+    #     )
+    # )
+    # # This one is either "Negotiable" or None
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="span",
+    #         da_id="price-type",
+    #         debug_logging_name="price-type",
+    #         transform=get_text_transform,
+    #     )
+    # )
+
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="div",
+    #         da_id="bedroom-amenity",
+    #         debug_logging_name="bedroom-amenity",
+    #         transform=get_amenity_num_transform,
+    #     )
+    # )
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="div",
+    #         da_id="bathroom-amenity",
+    #         debug_logging_name="bathroom-amenity",
+    #         transform=get_amenity_num_transform,
+    #     )
+    # )
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="div",
+    #         da_id="area-amenity",
+    #         debug_logging_name="area-amenity",
+    #         transform=get_amenity_num_transform,
+    #     )
+    # )
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="div",
+    #         da_id="psf-amenity",
+    #         debug_logging_name="psf-amenity",
+    #         transform=get_amenity_price_transform,
+    #     )
+    # )
+
+    # print(
+    #     _find_element(
+    #         html_soup=html_soup,
+    #         tag_name="p",
+    #         da_id="mrt-distance-text",
+    #         debug_logging_name="mrt-distance-text",
+    #         transform=get_mrt_distance_text_transform,
+    #     )
+    # )
 
 
 def _find_element(html_soup, tag_name, da_id, debug_logging_name, transform=None):
