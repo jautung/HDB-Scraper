@@ -149,6 +149,27 @@ class BrowserUtil:
             logger.debug("No browser to close")
 
 
+def get_single_rendered_html_browser_page_callback(
+    selector_to_wait_for=None, additional_action=None
+):
+    async def _callback(page, debug_logging_name):
+        if selector_to_wait_for is not None:
+            logger.debug(
+                f"Waiting for selector {selector_to_wait_for} of {debug_logging_name}"
+            )
+            await page.waitForSelector(selector_to_wait_for)
+
+        if additional_action is not None:
+            await additional_action(page=page, debug_logging_name=debug_logging_name)
+
+        logger.debug(f"Extracting rendered HTML from {debug_logging_name}")
+        html = await page.content()
+        logger.debug(f"Successfully extracted rendered HTML from {debug_logging_name}")
+        return html
+
+    return _callback
+
+
 def get_paged_rendered_html_browser_page_callback(
     initial_action=None, pagination_action=None
 ):
