@@ -77,7 +77,7 @@ async def _scrape_single_listing(listing_url, browser, current_attempt=1):
         return None
 
     listing_info = pg_parsing_util.parse_script_data_element(
-        script_data_element=script_data_element, debug_logging_name=listing_url
+        script_data_element=script_data_element, listing_url=listing_url
     )
     logger.info(f"Finished scraping {listing_url}")
     return listing_info
