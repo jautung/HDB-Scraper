@@ -23,6 +23,10 @@ class HeaderInfo:
     hdb_type: typing.Any
     area_sqft: typing.Any
     price: typing.Any
+    price_is_negotiable: typing.Any
+    num_bedrooms: typing.Any
+    num_bathrooms: typing.Any
+    is_verified: typing.Any
 
 
 @dataclasses.dataclass
@@ -59,17 +63,19 @@ def parse_script_data_element(script_data_element, listing_url):
 
 def _parse_header_info(main_data, listing_url):
     overview_data = main_data["propertyOverviewData"]
-    print("verifiedListingBadge", overview_data["verifiedListingBadge"])
     header_info = overview_data["propertyInfo"]
-    title = header_info["title"]
-    address = header_info["fullAddress"]
+    listing_data = main_data["listingData"]
+
     price_info = header_info["price"]
-    price_amount = text_to_price(price_info["amount"])
     price_type = price_info["priceType"]
-    print(price_type)
-    header_info_2 = header_info["amenities"]
-    # Probably parse this better
-    # print(header_info_2)
+    price_is_negotiable = price_type == "Negotiable"
+
+    if price_type is not None and not price_is_negotiable:
+        # TODO: For now, I'm curious, we remove this later
+        print(price_type)
+
+    header_info_2 = header_info["amenities"]  # Misnomer name
+    # TODO: Probably parse this better
     assert len(header_info_2) == 3
     assert header_info_2[0]["iconSrc"] == "bed-o"
     num_bedrooms = header_info_2[0]["value"]
@@ -77,6 +83,24 @@ def _parse_header_info(main_data, listing_url):
     num_bathrooms = header_info_2[1]["value"]
     assert header_info_2[2]["iconSrc"] == "ruler-o"
     num_sqft = header_info_2[2]["value"]
+
+    is_verified = overview_data["verifiedListingBadge"] is not None
+    if is_verified:
+        # TODO: For now, I'm curious, we remove this later
+        print(overview_data["verifiedListingBadge"])
+
+    return HeaderInfo(
+        title=header_info["title"],
+        address=header_info["fullAddress"],
+        postal_code=listing_data["postcode"],
+        hdb_type=listing_data["hdbTypeCode"],
+        area_sqft=num_sqft,
+        price=text_to_price(price_info["amount"]),
+        price_is_negotiable=price_is_negotiable,
+        num_bedrooms=num_bedrooms,
+        num_bathrooms=num_bathrooms,
+        is_verified=is_verified,
+    )
 
 
 def _parse_details_info(main_data, listing_url):
@@ -111,11 +135,9 @@ def _parse_details_info(main_data, listing_url):
     listing_data["bedrooms"]
     listing_data["bathrooms"]
     listing_data["floorArea"]
-    listing_data["postcode"]
     listing_data["districtCode"]
     listing_data["regionCode"]
     listing_data["tenure"]
-    listing_data["hdbTypeCode"]
     listing_data["hdbEstateText"]
     listing_data["streetName"]
     listing_data["lastPosted"]["unix"]

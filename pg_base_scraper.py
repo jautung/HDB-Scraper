@@ -26,14 +26,23 @@ async def _scrape_listings():
         user_agent=browser_util.FAKE_USER_AGENT,
     )
     # TODO Actually write this properly (read/write from/to files)
-    await _scrape_single_listing(
-        listing_url="https://www.propertyguru.com.sg/listing/60034673", browser=browser
+    print(
+        await _scrape_single_listing(
+            listing_url="https://www.propertyguru.com.sg/listing/60034673",
+            browser=browser,
+        )
     )
-    await _scrape_single_listing(
-        listing_url="https://www.propertyguru.com.sg/listing/25539219", browser=browser
+    print(
+        await _scrape_single_listing(
+            listing_url="https://www.propertyguru.com.sg/listing/25539219",
+            browser=browser,
+        )
     )
-    await _scrape_single_listing(
-        listing_url="https://www.propertyguru.com.sg/listing/25559652", browser=browser
+    print(
+        await _scrape_single_listing(
+            listing_url="https://www.propertyguru.com.sg/listing/25559652",
+            browser=browser,
+        )
     )
     await browser.maybe_close_browser()
 
