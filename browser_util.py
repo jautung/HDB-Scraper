@@ -150,14 +150,14 @@ class BrowserUtil:
 
 
 def get_single_rendered_html_browser_page_callback(
-    selector_to_wait_for=None, additional_action=None
+    wait_for_selector=None, additional_action=None
 ):
     async def _callback(page, debug_logging_name):
-        if selector_to_wait_for is not None:
+        if wait_for_selector is not None:
             logger.debug(
-                f"Waiting for selector {selector_to_wait_for} of {debug_logging_name}"
+                f"Waiting for selector {wait_for_selector} of {debug_logging_name}"
             )
-            await page.waitForSelector(selector_to_wait_for)
+            await page.waitForSelector(wait_for_selector)
 
         if additional_action is not None:
             await additional_action(page=page, debug_logging_name=debug_logging_name)

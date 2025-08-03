@@ -125,7 +125,7 @@ async def _scrape_single_listing(listing_url, debug_logging_name, browser):
         url=listing_url,
         callback_on_page=browser_util.get_single_rendered_html_browser_page_callback(
             # N/B: any 'h3' tag is a simple heuristic to determine that the Angular-rendered web page has loaded
-            selector_to_wait_for="h3",
+            wait_for_selector="h3",
             additional_action=_click_expand_all_button,
         ),
         debug_logging_name=debug_logging_name,
