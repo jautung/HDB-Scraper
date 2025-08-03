@@ -10,7 +10,14 @@ import bs4
 import browser_util
 import file_util
 
-PROPERTY_GURU_URL = "https://www.propertyguru.com.sg/property-for-sale"
+PROPERTY_GURU_5_ROOM_URL = "https://www.propertyguru.com.sg/hdb-5-room-flat-for-sale"
+PROPERTY_GURU_4_ROOM_URL = "https://www.propertyguru.com.sg/hdb-4-room-flat-for-sale"
+PROPERTY_GURU_3_ROOM_URL = "https://www.propertyguru.com.sg/hdb-3-room-flat-for-sale"
+PROPERTY_GURU_URLS = [
+    PROPERTY_GURU_5_ROOM_URL,
+    PROPERTY_GURU_4_ROOM_URL,
+    PROPERTY_GURU_3_ROOM_URL,
+]
 SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60
 RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
@@ -20,7 +27,12 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_listing_urls():
-    logger.info(f"Starting to get all listing URLs from {PROPERTY_GURU_URL}")
+    for base_page in PROPERTY_GURU_URLS:
+        await _get_listing_urls_from_base_page(base_page=base_page)
+
+
+async def _get_listing_urls_from_base_page(base_page):
+    logger.info(f"Starting to get all listing URLs from {base_page}")
     browser = browser_util.BrowserUtil(
         single_browser_run_timeout_seconds=SINGLE_BROWSER_RUN_TIMEOUT_SECONDS,
         retry_delay_seconds=RETRY_DELAY_SECONDS,
@@ -29,7 +41,7 @@ async def _get_listing_urls():
         user_agent=browser_util.FAKE_USER_AGENT,
     )
 
-    num_pages = await _get_num_pages(browser=browser)
+    num_pages = await _get_num_pages(browser=browser, base_page=base_page)
     logger.info(f"Number of pages is {num_pages}")
 
     with open(
@@ -42,25 +54,25 @@ async def _get_listing_urls():
         for page_num in range(1, num_pages + 1):
             logger.info(f"Getting listing URLs from page {page_num}/{num_pages}")
             listing_urls = await _get_listing_urls_from_page(
-                browser=browser, page_url=f"{PROPERTY_GURU_URL}/{page_num}"
+                browser=browser, page_url=f"{base_page}/{page_num}"
             )
             writer.writerows([[listing_url] for listing_url in listing_urls])
 
     await browser.maybe_close_browser()
 
 
-async def _get_num_pages(browser):
+async def _get_num_pages(browser, base_page):
     logger.info(
-        f"Reading the first main page {PROPERTY_GURU_URL} to determine the number of pages"
+        f"Reading the first main page {base_page} to determine the number of pages"
     )
     html = await browser.run_with_browser_page_for_url(
-        url=PROPERTY_GURU_URL,
+        url=base_page,
         callback_on_page=browser_util.get_single_rendered_html_browser_page_callback(),
-        debug_logging_name=PROPERTY_GURU_URL,
+        debug_logging_name=base_page,
         wait_until="domcontentloaded",
     )
 
-    logger.debug(f"Parsing HTML of the first main page of {PROPERTY_GURU_URL}")
+    logger.debug(f"Parsing HTML of the first main page of {base_page}")
     html_soup = bs4.BeautifulSoup(html, "html.parser")
     pagination_bar = html_soup.find("ul", {"class": "hui-pagination"})
     pagination_links = pagination_bar.find_all("a", class_="page-link")
