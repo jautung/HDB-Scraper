@@ -42,7 +42,7 @@ class DetailsInfo:
     district: typing.Any
     estate: typing.Any
     street: typing.Any
-    nearest_mrt_code: typing.Any
+    nearest_mrt_name: typing.Any
     nearest_mrt_distance_metres: typing.Any
     nearest_mrt_duration_seconds: typing.Any
     furnished_status: typing.Any
@@ -224,7 +224,7 @@ def _parse_details_info(main_data, listing_data, listing_url):
         district=listing_data["districtText"],
         estate=listing_data["hdbEstateText"],
         street=listing_data["streetName"],
-        nearest_mrt_code=nearest_mrt_info.code,
+        nearest_mrt_name=nearest_mrt_info.name,
         nearest_mrt_distance_metres=nearest_mrt_info.distance_metres,
         nearest_mrt_duration_seconds=nearest_mrt_info.duration_seconds,
         furnished_status=metatable_details_info.furnished_status,
@@ -239,7 +239,7 @@ def _parse_details_info(main_data, listing_data, listing_url):
 
 @dataclasses.dataclass
 class NearestMrtInfo:
-    code: typing.Any
+    name: typing.Any
     distance_metres: typing.Any
     duration_seconds: typing.Any
 
@@ -247,7 +247,7 @@ class NearestMrtInfo:
 def _parse_nearest_mrt_data(items, listing_url):
     non_future_infos = [
         NearestMrtInfo(
-            code=item["id"],
+            name=item["name"],
             distance_metres=item["distance"]["value"],
             duration_seconds=item["duration"]["value"],
         )
@@ -259,7 +259,7 @@ def _parse_nearest_mrt_data(items, listing_url):
             f"Did not find any non-future nearest MRT info for {listing_url}"
         )
         return NearestMrtInfo(
-            code=None,
+            name=None,
             distance_metres=None,
             duration_seconds=None,
         )
