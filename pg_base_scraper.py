@@ -218,7 +218,9 @@ def _write_full_results_row(full_results_writer, listing_info):
             listing_info.header_info.area_sqft / 10.764,
             listing_info.header_info.price,
             listing_info.details_info.floor_level,
-            99 - (datetime.datetime.now().year - listing_info.details_info.top_year),
+            99 - (datetime.datetime.now().year - listing_info.details_info.top_year)
+            if listing_info.details_info.top_year is not None
+            else None,
             listing_info.details_info.nearest_mrt_name,
             listing_info.details_info.nearest_mrt_duration_seconds / 60
             if listing_info.details_info.nearest_mrt_duration_seconds is not None
