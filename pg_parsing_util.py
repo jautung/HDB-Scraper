@@ -21,11 +21,11 @@ class HeaderInfo:
     address: typing.Any
     postal_code: typing.Any
     hdb_type: typing.Any
-    area_sqft: typing.Any
     price: typing.Any
     price_is_negotiable: typing.Any
     num_bedrooms: typing.Any
     num_bathrooms: typing.Any
+    area_sqft: typing.Any
     is_verified: typing.Any
 
 
@@ -44,9 +44,19 @@ def parse_script_data_element(script_data_element, listing_url):
     try:
         data = json.loads(json_data)
         main_data = data["props"]["pageProps"]["pageData"]["data"]
-        header_info = _parse_header_info(main_data=main_data, listing_url=listing_url)
-        details_info = _parse_details_info(main_data=main_data, listing_url=listing_url)
-        extra_info = _parse_extra_info(main_data=main_data, listing_url=listing_url)
+        listing_data = main_data["listingData"]
+        # Data is somehow duplicated between `main_data` and `listing_data`.
+        # Generally, prefer `listing_data` as the source of truth where possible;
+        # and warn on mismatches with `main_data`.
+        header_info = _parse_header_info(
+            main_data=main_data, listing_data=listing_data, listing_url=listing_url
+        )
+        details_info = _parse_details_info(
+            main_data=main_data, listing_data=listing_data, listing_url=listing_url
+        )
+        extra_info = _parse_extra_info(
+            main_data=main_data, listing_data=listing_data, listing_url=listing_url
+        )
         return ListingInfo(
             listing_url=listing_url,
             header_info=header_info,
@@ -61,57 +71,122 @@ def parse_script_data_element(script_data_element, listing_url):
         return None
 
 
-def _parse_header_info(main_data, listing_url):
+def _parse_header_info(main_data, listing_data, listing_url):
     overview_data = main_data["propertyOverviewData"]
-    header_info = overview_data["propertyInfo"]
-    listing_data = main_data["listingData"]
+    header_data = overview_data["propertyInfo"]
 
-    price_info = header_info["price"]
-    price_type = price_info["priceType"]
-    price_is_negotiable = price_type == "Negotiable"
+    title = _compare_data_and_return(
+        value_from_main=header_data["title"],
+        value_from_listing=listing_data["localizedTitle"],
+        listing_url=listing_url,
+        debug_logging_name="title",
+    )
+    address = _compare_data_and_return(
+        value_from_main=header_data["fullAddress"],
+        value_from_listing=listing_data["propertyName"],
+        listing_url=listing_url,
+        debug_logging_name="address",
+    )
 
-    if price_type is not None and not price_is_negotiable:
-        # TODO: For now, I'm curious, we remove this later
-        print(price_type)
+    price_data = header_data["price"]
+    price = _compare_data_and_return(
+        value_from_main=text_to_price(price_data["amount"]),
+        value_from_listing=listing_data["price"],
+        listing_url=listing_url,
+        debug_logging_name="price",
+    )
+    price_is_negotiable = _parse_price_is_negotiable(
+        price_type=price_data["priceType"], listing_url=listing_url
+    )
 
-    header_info_2 = header_info["amenities"]  # Misnomer name
-    # TODO: Probably parse this better and remove all the asserts
-    assert len(header_info_2) == 3
-    assert header_info_2[0]["iconSrc"] == "bed-o"
-    num_bedrooms = text_to_num(header_info_2[0]["value"])
-    assert header_info_2[1]["iconSrc"] == "bath-o"
-    num_bathrooms = text_to_num(header_info_2[1]["value"])
-    assert header_info_2[2]["iconSrc"] == "ruler-o"
-    num_sqft = text_to_num(header_info_2[2]["value"])
+    room_and_area_data = _parse_room_and_area_data(
+        items=header_data["amenities"], listing_url=listing_url
+    )
+    num_bedrooms = _compare_data_and_return(
+        value_from_main=room_and_area_data.num_bedrooms,
+        value_from_listing=listing_data["bedrooms"],
+        listing_url=listing_url,
+        debug_logging_name="num_bedrooms",
+    )
+    num_bathrooms = _compare_data_and_return(
+        value_from_main=room_and_area_data.num_bathrooms,
+        value_from_listing=listing_data["bathrooms"],
+        listing_url=listing_url,
+        debug_logging_name="num_bathrooms",
+    )
+    area_sqft = _compare_data_and_return(
+        value_from_main=room_and_area_data.area_sqft,
+        value_from_listing=listing_data["floorArea"],
+        listing_url=listing_url,
+        debug_logging_name="area_sqft",
+    )
 
-    is_verified = overview_data["verifiedListingBadge"] is not None
-    if is_verified:
-        # TODO: For now, I'm curious, we remove this later
-        print(overview_data["verifiedListingBadge"])
-
-    # Maybe just warn on these instead of crashing?
-    assert listing_data["localizedTitle"] == header_info["title"]
-    assert listing_data["propertyName"] == header_info["fullAddress"]
-    assert listing_data["price"] == text_to_price(price_info["amount"])
-    assert listing_data["bedrooms"] == num_bedrooms
-    assert listing_data["bathrooms"] == num_bathrooms
-    assert listing_data["floorArea"] == num_sqft
+    is_verified = _compare_data_and_return(
+        value_from_main=overview_data["verifiedListingBadge"] is not None,
+        value_from_listing=listing_data["isVerified"],
+        listing_url=listing_url,
+        debug_logging_name="is_verified",
+    )
 
     return HeaderInfo(
-        title=header_info["title"],
-        address=header_info["fullAddress"],
+        title=title,
+        address=address,
         postal_code=listing_data["postcode"],
         hdb_type=listing_data["hdbTypeCode"],
-        area_sqft=num_sqft,
-        price=text_to_price(price_info["amount"]),
+        price=price,
         price_is_negotiable=price_is_negotiable,
         num_bedrooms=num_bedrooms,
         num_bathrooms=num_bathrooms,
+        area_sqft=area_sqft,
         is_verified=is_verified,
     )
 
 
-def _parse_details_info(main_data, listing_url):
+def _parse_price_is_negotiable(price_type, listing_url):
+    if price_type is not None and price_type != "Negotiable":
+        logger.warning(f"Found unexpected price type {price_type} for {listing_url}")
+    return price_type == "Negotiable"
+
+
+@dataclasses.dataclass
+class RoomAndAreaData:
+    num_bedrooms: typing.Any
+    num_bathrooms: typing.Any
+    area_sqft: typing.Any
+
+
+def _parse_room_and_area_data(items, listing_url):
+    if len(items) != 3:
+        logger.warning(
+            f"Found unexpected length of 'amenities' (room and area) items for {listing_url}"
+        )
+    bedrooms_item = next(item for item in items if item["iconSrc"] == "bed-o")
+    if bedrooms_item is None:
+        logger.warning(
+            f"Did not find a 'bedrooms' items within 'amenities' for {listing_url}"
+        )
+    bathrooms_item = next(item for item in items if item["iconSrc"] == "bath-o")
+    if bathrooms_item is None:
+        logger.warning(
+            f"Did not find a 'bathrooms' items within 'amenities' for {listing_url}"
+        )
+    area_item = next(item for item in items if item["iconSrc"] == "ruler-o")
+    if area_item is None:
+        logger.warning(
+            f"Did not find an 'area' items within 'amenities' for {listing_url}"
+        )
+    return RoomAndAreaData(
+        num_bedrooms=text_to_num(bedrooms_item["value"])
+        if bedrooms_item is not None
+        else None,
+        num_bathrooms=text_to_num(bathrooms_item["value"])
+        if bathrooms_item is not None
+        else None,
+        area_sqft=text_to_num(area_item["value"]) if area_item is not None else None,
+    )
+
+
+def _parse_details_info(main_data, listing_data, listing_url):
     location_data = main_data["listingLocationData"]["data"]
     location_lat = location_data["center"]["lat"]
     location_lon = location_data["center"]["lng"]
@@ -146,7 +221,7 @@ def _parse_details_info(main_data, listing_url):
     listing_data["lastPosted"]["unix"]
 
 
-def _parse_extra_info(main_data, listing_url):
+def _parse_extra_info(main_data, listing_data, listing_url):
     # Maybe agent can be None? unclear...
     listing_data = main_data["listingData"]
     listing_data["agent"]["name"]
@@ -180,6 +255,18 @@ def _parse_extra_info(main_data, listing_url):
     faq_data = main_data["faqData"]["list"]
     faq_info = "\n\n".join([f["question"] + "\n" + f["answer"] for f in faq_data])
     # print(faq_info)
+
+
+def _compare_data_and_return(
+    value_from_main, value_from_listing, listing_url, debug_logging_name
+):
+    if value_from_main is None:
+        return value_from_listing
+    if value_from_main != value_from_listing:
+        logger.warning(
+            f"Different info from `main_data` and `listing_data` for {debug_logging_name} for {listing_url}"
+        )
+    return value_from_listing
 
 
 def text_to_price(text):

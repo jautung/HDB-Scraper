@@ -44,6 +44,12 @@ async def _scrape_listings():
             browser=browser,
         )
     )
+    print(
+        await _scrape_single_listing(
+            listing_url="https://www.propertyguru.com.sg/listing/25486365",
+            browser=browser,
+        )
+    )
     await browser.maybe_close_browser()
 
 
