@@ -7,6 +7,7 @@ LISTINGS_FILENAME = "listing_urls.csv"
 BASE_INFO_FILENAME = "listing_info.csv"
 FULL_RESULTS_FILENAME = "listings.csv"
 PG_LISTINGS_FILENAME = "pg_listing_urls.csv"
+PG_FULL_RESULTS_FILENAME = "pg_listings.csv"
 
 
 def maybe_create_output_folder():

@@ -379,7 +379,8 @@ def _parse_extra_info(main_data, listing_data, listing_url):
     agent_agency = agent_card_data["agency"]["name"]
     agent_profile_url = f"{PROPERTY_GURU_BASE_URL}{agent_info_data['profileUrl']}"
 
-    amenities_items = main_data["amenitiesData"]["data"]
+    amenities_data = main_data["amenitiesData"]
+    amenities_items = amenities_data["data"] if amenities_data is not None else []
     amenities = sorted(list(set(item["text"] for item in amenities_items)))
 
     main_image = main_data["metadata"]["metaTags"]["openGraph"]["image"]
