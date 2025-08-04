@@ -1,9 +1,14 @@
 # pylint: disable=import-error,missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,too-many-locals,line-too-long,logging-fstring-interpolation,broad-exception-caught
 import dataclasses
+import datetime
 import json
 import logging
+import re
 import typing
 
+TOP_YEAR_PATTERN = r"^TOP in (\d+)$"
+LISTED_DATE_PATTERN = r"^Listed on\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)$"
+SINGAPORE_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +36,22 @@ class HeaderInfo:
 
 @dataclasses.dataclass
 class DetailsInfo:
-    town: typing.Any
+    location_lat: typing.Any
+    location_lon: typing.Any
+    region: typing.Any
+    district: typing.Any
+    estate: typing.Any
+    street: typing.Any
+    nearest_mrt_code: typing.Any
+    nearest_mrt_distance_metres: typing.Any
+    nearest_mrt_duration_seconds: typing.Any
+    furnished_status: typing.Any
+    top_year: typing.Any
+    listed_date: typing.Any
+    tenanted_status: typing.Any
+    floor_level: typing.Any
+    description_subtitle: typing.Any
+    description_details: typing.Any
 
 
 @dataclasses.dataclass
@@ -160,17 +180,17 @@ def _parse_room_and_area_data(items, listing_url):
         logger.warning(
             f"Found unexpected length of 'amenities' (room and area) items for {listing_url}"
         )
-    bedrooms_item = next(item for item in items if item["iconSrc"] == "bed-o")
+    bedrooms_item = next((item for item in items if item["iconSrc"] == "bed-o"), None)
     if bedrooms_item is None:
         logger.warning(
             f"Did not find a 'bedrooms' items within 'amenities' for {listing_url}"
         )
-    bathrooms_item = next(item for item in items if item["iconSrc"] == "bath-o")
+    bathrooms_item = next((item for item in items if item["iconSrc"] == "bath-o"), None)
     if bathrooms_item is None:
         logger.warning(
             f"Did not find a 'bathrooms' items within 'amenities' for {listing_url}"
         )
-    area_item = next(item for item in items if item["iconSrc"] == "ruler-o")
+    area_item = next((item for item in items if item["iconSrc"] == "ruler-o"), None)
     if area_item is None:
         logger.warning(
             f"Did not find an 'area' items within 'amenities' for {listing_url}"
@@ -188,37 +208,155 @@ def _parse_room_and_area_data(items, listing_url):
 
 def _parse_details_info(main_data, listing_data, listing_url):
     location_data = main_data["listingLocationData"]["data"]
-    location_lat = location_data["center"]["lat"]
-    location_lon = location_data["center"]["lng"]
-    # Need to find the first one that is not 'isFuture'
-    for nm in location_data["nearestMRTs"]:
-        print(
-            nm["id"],
-            nm["isFutureLine"],
-            nm["distance"]["value"],
-            "m",
-            nm["duration"]["value"],
-            "seconds",
-        )
-
-    details_data = main_data["detailsData"]["metatable"]["items"]
-    # Assume this is always in the right order?
-    # TODO: This needs a lot of parsing
-    print([(d["icon"], d["value"]) for d in details_data])
-
+    nearest_mrt_info = _parse_nearest_mrt_data(
+        items=location_data["nearestMRTs"], listing_url=listing_url
+    )
+    metatable_details_info = _parse_metatable_details_data(
+        items=main_data["detailsData"]["metatable"]["items"],
+        listing_data=listing_data,
+        listing_url=listing_url,
+    )
     description_data = main_data["descriptionBlockData"]
-    description_subtitle = description_data["subtitle"]
-    description_details = description_data["description"]
+    return DetailsInfo(
+        location_lat=location_data["center"]["lat"],
+        location_lon=location_data["center"]["lng"],
+        region=listing_data["regionText"],
+        district=listing_data["districtText"],
+        estate=listing_data["hdbEstateText"],
+        street=listing_data["streetName"],
+        nearest_mrt_code=nearest_mrt_info.code,
+        nearest_mrt_distance_metres=nearest_mrt_info.distance_metres,
+        nearest_mrt_duration_seconds=nearest_mrt_info.duration_seconds,
+        furnished_status=metatable_details_info.furnished_status,
+        top_year=metatable_details_info.top_year,
+        listed_date=metatable_details_info.listed_date,
+        tenanted_status=metatable_details_info.tenanted_status,
+        floor_level=metatable_details_info.floor_level,
+        description_subtitle=description_data["subtitle"],
+        description_details=description_data["description"],
+    )
 
-    # listingData
-    listing_data = main_data["listingData"]
-    # This also has a lot of fields of the above stuff, maybe we should've been using this instead
-    listing_data["districtCode"]
-    listing_data["regionCode"]
-    listing_data["tenure"]
-    listing_data["hdbEstateText"]
-    listing_data["streetName"]
-    listing_data["lastPosted"]["unix"]
+
+@dataclasses.dataclass
+class NearestMrtInfo:
+    code: typing.Any
+    distance_metres: typing.Any
+    duration_seconds: typing.Any
+
+
+def _parse_nearest_mrt_data(items, listing_url):
+    non_future_infos = [
+        NearestMrtInfo(
+            code=item["id"],
+            distance_metres=item["distance"]["value"],
+            duration_seconds=item["duration"]["value"],
+        )
+        for item in items
+        if not item["isFutureLine"]
+    ]
+    if len(non_future_infos) == 0:
+        logger.warning(
+            f"Did not find any non-future nearest MRT info for {listing_url}"
+        )
+        return NearestMrtInfo(
+            code=None,
+            distance_metres=None,
+            duration_seconds=None,
+        )
+    return min(non_future_infos, key=lambda info: info.duration_seconds)
+
+
+@dataclasses.dataclass
+class MetatableDetailsData:
+    furnished_status: typing.Any
+    top_year: typing.Any
+    listed_date: typing.Any
+    tenanted_status: typing.Any
+    floor_level: typing.Any
+
+
+def _parse_metatable_details_data(items, listing_data, listing_url):
+    furnished_status_item = next(
+        (item for item in items if item["icon"] == "furnished-o"), None
+    )
+    top_year_item = next(
+        (item for item in items if item["icon"] == "document-with-lines-o"), None
+    )
+    tenure_item = next(
+        (item for item in items if item["icon"] == "calendar-days-o"), None
+    )
+    if tenure_item["value"] != "99-year lease" or listing_data["tenure"] != "L99":
+        logger.warning(f"Found a non-99-year lease HDB unit at {listing_url}")
+    listed_date_item = next(
+        (item for item in items if item["icon"] == "calendar-time-o"), None
+    )
+    tenanted_status_item = next(
+        (item for item in items if item["icon"] == "people-behind-o"), None
+    )
+    floor_level_item = next(
+        (item for item in items if item["icon"] == "layers-2-o"), None
+    )
+    developer_item = next(
+        (item for item in items if item["icon"] == "new-project-o"), None
+    )
+    if developer_item["value"] != "Developed by Housing & Development Board\xa0(HDB)":
+        logger.warning(f"Found a non-HDB unit at {listing_url}")
+
+    return MetatableDetailsData(
+        furnished_status=furnished_status_item["value"]
+        if furnished_status_item is not None
+        else None,
+        top_year=_parse_top_year(
+            year_text=top_year_item["value"], listing_url=listing_url
+        )
+        if top_year_item is not None
+        else None,
+        listed_date=_parse_listed_date(
+            listed_date_text=listed_date_item["value"],
+            listing_data=listing_data,
+            listing_url=listing_url,
+        )
+        if listed_date_item is not None
+        else None,
+        tenanted_status=tenanted_status_item["value"]
+        if tenanted_status_item is not None
+        else None,
+        floor_level=floor_level_item["value"] if floor_level_item is not None else None,
+    )
+
+
+def _parse_top_year(year_text, listing_url):
+    match = re.search(TOP_YEAR_PATTERN, year_text)
+    if match is None:
+        logger.error(
+            f"TOP year item {year_text} did not match the known pattern for {listing_url}"
+        )
+        return None
+    return int(match.group(1))
+
+
+def _parse_listed_date(listed_date_text, listing_data, listing_url):
+    unix_time = listing_data["lastPosted"]["unix"]
+    unix_date = datetime.datetime.fromtimestamp(unix_time, tz=SINGAPORE_TIMEZONE)
+
+    match = re.search(LISTED_DATE_PATTERN, listed_date_text)
+    if match is None:
+        logger.error(
+            f"Listed date item {listed_date_text} did not match the known pattern for {listing_url}"
+        )
+        return unix_date.strftime("%Y-%m-%d")
+
+    day, month, year = match.groups()
+    text_date = datetime.datetime(
+        year=int(year),
+        month=datetime.datetime.strptime(month, "%b").month,
+        day=int(day),
+    )
+    if text_date.date() != unix_date.date():
+        logger.warning(
+            f"Different info from `main_data` and `listing_data` for listed_date for {listing_url}"
+        )
+    return unix_date.strftime("%Y-%m-%d")
 
 
 def _parse_extra_info(main_data, listing_data, listing_url):
@@ -239,10 +377,10 @@ def _parse_extra_info(main_data, listing_data, listing_url):
 
     amenities_data = main_data["amenitiesData"]["data"]
     # Maybe dedupe this?
-    print("amenities", [a["text"] for a in amenities_data])
+    # print("amenities", [a["text"] for a in amenities_data])
 
     main_image = main_data["metadata"]["metaTags"]["openGraph"]["image"]
-    print("main_image", main_image)
+    # print("main_image", main_image)
 
     media_data = main_data["mediaGalleryData"]["media"]
     image_links = [i["src"] for i in media_data["images"]["items"]]

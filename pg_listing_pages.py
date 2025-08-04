@@ -120,7 +120,6 @@ def _parse_and_normalize_listing(link):
             f"Link {link} did not match the listing pattern; this should not be possible; exiting!"
         )
         sys.exit(1)
-    assert match is not None
     return f"https://www.propertyguru.com.sg/listing/{match.group(1)}"
 
 
