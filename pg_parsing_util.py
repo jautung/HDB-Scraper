@@ -6,6 +6,7 @@ import logging
 import re
 import typing
 
+PROPERTY_GURU_BASE_URL = "https://www.propertyguru.com.sg/listing"
 TOP_YEAR_PATTERN = r"^TOP in (\d+)$"
 LISTED_DATE_PATTERN = r"^Listed on\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)$"
 SINGAPORE_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))
@@ -56,7 +57,14 @@ class DetailsInfo:
 
 @dataclasses.dataclass
 class ExtraInfo:
-    town: typing.Any
+    agent_name: typing.Any
+    agent_agency: typing.Any
+    agent_profile_url: typing.Any
+    amenities: typing.Any
+    main_image: typing.Any
+    all_images: typing.Any
+    floor_plans: typing.Any
+    faq_info: typing.Any
 
 
 def parse_script_data_element(script_data_element, listing_url):
@@ -360,39 +368,56 @@ def _parse_listed_date(listed_date_text, listing_data, listing_url):
 
 
 def _parse_extra_info(main_data, listing_data, listing_url):
-    # Maybe agent can be None? unclear...
-    listing_data = main_data["listingData"]
-    listing_data["agent"]["name"]
-    main_data["contactAgentData"]["contactAgentCard"]["agency"]["name"]
-    main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"]["name"]
-    main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
-        "avatar"
-    ]
-    # Needs https://www.propertyguru.com.sg/listing/ prefix again
-    main_data["contactAgentData"]["contactAgentCard"]["agentInfoProps"]["agent"][
-        "profileUrl"
-    ]
+    agent_card_data = main_data["contactAgentData"]["contactAgentCard"]
+    agent_info_data = agent_card_data["agentInfoProps"]["agent"]
+    agent_name = _compare_data_and_return(
+        value_from_main=agent_info_data["name"],
+        value_from_listing=listing_data["agent"]["name"],
+        listing_url=listing_url,
+        debug_logging_name="agent_name",
+    )
+    agent_agency = agent_card_data["agency"]["name"]
+    agent_profile_url = f"{PROPERTY_GURU_BASE_URL}/{agent_info_data['profileUrl']}"
 
-    # EXTRA STUFF BELOW HERE MIGHT AS WELL SINCE IT IS SO EASY
-
-    amenities_data = main_data["amenitiesData"]["data"]
-    # Maybe dedupe this?
-    # print("amenities", [a["text"] for a in amenities_data])
+    amenities_items = main_data["amenitiesData"]["data"]
+    amenities = sorted(list(set(item["text"] for item in amenities_items)))
 
     main_image = main_data["metadata"]["metaTags"]["openGraph"]["image"]
-    # print("main_image", main_image)
 
-    media_data = main_data["mediaGalleryData"]["media"]
-    image_links = [i["src"] for i in media_data["images"]["items"]]
-    floor_plan_links = [i["src"] for i in media_data["floorPlans"]["items"]]
-    # Should definitely de-dupe these images
+    media_gallery_data = main_data["mediaGalleryData"]["media"]
     media_explorer_data = main_data["mediaExplorerData"]["mediaGroups"]
-    image_links_2 = [i["src"] for i in media_explorer_data["images"]["items"]]
-    floor_plan_links_2 = [i["src"] for i in media_explorer_data["floorPlans"]["items"]]
+    all_images = sorted(
+        list(
+            set(
+                [item["src"] for item in media_gallery_data["images"]["items"]]
+                + [item["src"] for item in media_explorer_data["images"]["items"]]
+            )
+        )
+    )
+    floor_plans = sorted(
+        list(
+            set(
+                [item["src"] for item in media_gallery_data["floorPlans"]["items"]]
+                + [item["src"] for item in media_explorer_data["floorPlans"]["items"]]
+            )
+        )
+    )
 
-    faq_data = main_data["faqData"]["list"]
-    faq_info = "\n\n".join([f["question"] + "\n" + f["answer"] for f in faq_data])
-    # print(faq_info)
+    faq_items = main_data["faqData"]["list"]
+    faq_info = "\n\n".join(
+        [f"{faq_data['question']}\n{faq_data['answer']}" for faq_data in faq_items]
+    )
+
+    return ExtraInfo(
+        agent_name=agent_name,
+        agent_agency=agent_agency,
+        agent_profile_url=agent_profile_url,
+        amenities=amenities,
+        main_image=main_image,
+        all_images=all_images,
+        floor_plans=floor_plans,
+        faq_info=faq_info,
+    )
 
 
 def _compare_data_and_return(
