@@ -6,7 +6,7 @@ import logging
 import re
 import typing
 
-PROPERTY_GURU_BASE_URL = "https://www.propertyguru.com.sg/listing"
+PROPERTY_GURU_BASE_URL = "https://www.propertyguru.com.sg"
 TOP_YEAR_PATTERN = r"^TOP in (\d+)$"
 LISTED_DATE_PATTERN = r"^Listed on\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)$"
 SINGAPORE_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))
@@ -377,7 +377,7 @@ def _parse_extra_info(main_data, listing_data, listing_url):
         debug_logging_name="agent_name",
     )
     agent_agency = agent_card_data["agency"]["name"]
-    agent_profile_url = f"{PROPERTY_GURU_BASE_URL}/{agent_info_data['profileUrl']}"
+    agent_profile_url = f"{PROPERTY_GURU_BASE_URL}{agent_info_data['profileUrl']}"
 
     amenities_items = main_data["amenitiesData"]["data"]
     amenities = sorted(list(set(item["text"] for item in amenities_items)))
