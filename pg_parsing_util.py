@@ -290,7 +290,9 @@ def _parse_metatable_details_data(items, listing_data, listing_url):
     tenure_item = next(
         (item for item in items if item["icon"] == "calendar-days-o"), None
     )
-    if tenure_item["value"] != "99-year lease" or listing_data["tenure"] != "L99":
+    if (
+        tenure_item is not None and tenure_item["value"] != "99-year lease"
+    ) or listing_data["tenure"] != "L99":
         logger.warning(f"Found a non-99-year lease HDB unit at {listing_url}")
     listed_date_item = next(
         (item for item in items if item["icon"] == "calendar-time-o"), None
