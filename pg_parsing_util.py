@@ -335,7 +335,7 @@ def _parse_top_year(year_text, listing_url):
     if match is None:
         # Sometimes there is just no TOP year item, and we use the same icon for Listing ID item;
         # we still return None in this case, but omit the warning since this is an expected outcome
-        if re.search(LISTING_ID_PATTERN, year_text) is not None:
+        if re.search(LISTING_ID_PATTERN, year_text) is None:
             logger.error(
                 f"TOP year item {year_text} did not match the known pattern for {listing_url}"
             )
