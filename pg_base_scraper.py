@@ -11,6 +11,7 @@ import file_util
 import pg_parsing_util
 
 SINGLE_BROWSER_RUN_TIMEOUT_SECONDS = 5 * 60
+NAVIGATION_TIMEOUT_SECONDS = 1
 DELAY_PER_LISTING_LOAD_SECONDS = 1
 RETRY_DELAY_SECONDS = 5
 MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
@@ -125,6 +126,8 @@ async def _scrape_single_listing(
         callback_on_page=browser_util.get_single_rendered_html_browser_page_callback(),
         debug_logging_name=debug_logging_name,
         wait_until="domcontentloaded",
+        wait_for_selector='h1[da-id="property-title"]',
+        timeout=NAVIGATION_TIMEOUT_SECONDS * 1000,
     )
     if html is None:
         return None

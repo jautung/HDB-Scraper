@@ -33,6 +33,8 @@ class BrowserUtil:
         callback_on_page,
         debug_logging_name,
         wait_until="networkidle0",
+        wait_for_selector=None,
+        timeout=None,
         current_attempt=1,
     ):
         await self._maybe_close_page()
@@ -44,6 +46,8 @@ class BrowserUtil:
                     callback_on_page=callback_on_page,
                     debug_logging_name=debug_logging_name,
                     wait_until=wait_until,
+                    wait_for_selector=wait_for_selector,
+                    timeout=timeout,
                 ),
                 timeout=self.single_browser_run_timeout_seconds,
             )
@@ -66,6 +70,8 @@ class BrowserUtil:
                 callback_on_page=callback_on_page,
                 debug_logging_name=debug_logging_name,
                 wait_until=wait_until,
+                wait_for_selector=wait_for_selector,
+                timeout=timeout,
                 current_attempt=current_attempt + 1,
             )
 
@@ -87,6 +93,8 @@ class BrowserUtil:
                 callback_on_page=callback_on_page,
                 debug_logging_name=debug_logging_name,
                 wait_until=wait_until,
+                wait_for_selector=wait_for_selector,
+                timeout=timeout,
                 current_attempt=current_attempt + 1,
             )
 
@@ -94,15 +102,32 @@ class BrowserUtil:
             await self._maybe_close_page()
 
     async def _inner_run_with_browser_page_for_url(
-        self, url, callback_on_page, debug_logging_name, wait_until
+        self,
+        url,
+        callback_on_page,
+        debug_logging_name,
+        wait_until,
+        wait_for_selector,
+        timeout,
     ):
         self.page = await (await self._get_browser()).newPage()
         if self.user_agent is not None:
             logger.debug(f"Setting user agent to {self.user_agent}")
             await self.page.setUserAgent(self.user_agent)
 
-        logger.debug(f"Navigating to {debug_logging_name}")
-        await self.page.goto(url, waitUntil=wait_until)
+        if timeout is None:
+            logger.debug(f"Navigating to {debug_logging_name} without timeout")
+            await self.page.goto(url, waitUntil=wait_until)
+        else:
+            logger.debug(f"Navigating to {debug_logging_name} with timeout {timeout}")
+            try:
+                await self.page.goto(url, waitUntil=wait_until, timeout=timeout)
+            except pyppeteer.errors.TimeoutError as e:
+                logger.debug("Continuing after timeout for 'goto' navigation")
+
+        if wait_for_selector is not None:
+            logger.debug(f"Waiting for selector {wait_for_selector}")
+            await self.page.waitForSelector(wait_for_selector)
 
         return await callback_on_page(
             page=self.page,
