@@ -8,6 +8,7 @@ import typing
 
 PROPERTY_GURU_BASE_URL = "https://www.propertyguru.com.sg"
 TOP_YEAR_PATTERN = r"^TOP in( [a-zA-Z]+)? (\d+)$"
+LISTING_ID_PATTERN = r"^Listing ID - \d+$"
 LISTED_DATE_PATTERN = r"^Listed on\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)$"
 SINGAPORE_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))
 logger = logging.getLogger(__name__)
@@ -332,9 +333,12 @@ def _parse_metatable_details_data(items, listing_data, listing_url):
 def _parse_top_year(year_text, listing_url):
     match = re.search(TOP_YEAR_PATTERN, year_text)
     if match is None:
-        logger.error(
-            f"TOP year item {year_text} did not match the known pattern for {listing_url}"
-        )
+        # Sometimes there is just no TOP year item, and we use the same icon for Listing ID item;
+        # we still return None in this case, but omit the warning since this is an expected outcome
+        if re.search(LISTING_ID_PATTERN, year_text) is not None:
+            logger.error(
+                f"TOP year item {year_text} did not match the known pattern for {listing_url}"
+            )
         return None
     return int(match.group(2))
 
