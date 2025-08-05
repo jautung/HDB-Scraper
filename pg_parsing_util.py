@@ -7,7 +7,7 @@ import re
 import typing
 
 PROPERTY_GURU_BASE_URL = "https://www.propertyguru.com.sg"
-TOP_YEAR_PATTERN = r"^TOP in ([a-zA-Z]+)? (\d+)$"
+TOP_YEAR_PATTERN = r"^TOP in( [a-zA-Z]+)? (\d+)$"
 LISTED_DATE_PATTERN = r"^Listed on\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)$"
 SINGAPORE_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))
 logger = logging.getLogger(__name__)
