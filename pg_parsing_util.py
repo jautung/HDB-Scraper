@@ -7,7 +7,7 @@ import re
 import typing
 
 PROPERTY_GURU_BASE_URL = "https://www.propertyguru.com.sg"
-TOP_YEAR_PATTERN = r"^TOP in (\d+)$"
+TOP_YEAR_PATTERN = r"^TOP in ([a-zA-Z]+)? (\d+)$"
 LISTED_DATE_PATTERN = r"^Listed on\s+(\d+)\s+([a-zA-Z]+)\s+(\d+)$"
 SINGAPORE_TIMEZONE = datetime.timezone(datetime.timedelta(hours=8))
 logger = logging.getLogger(__name__)
@@ -109,12 +109,7 @@ def _parse_header_info(main_data, listing_data, listing_url):
         listing_url=listing_url,
         debug_logging_name="title",
     )
-    address = _compare_data_and_return(
-        value_from_main=header_data["fullAddress"],
-        value_from_listing=listing_data["propertyName"],
-        listing_url=listing_url,
-        debug_logging_name="address",
-    )
+    address = header_data["fullAddress"]
 
     price_data = header_data["price"]
     price = _compare_data_and_return(
@@ -171,7 +166,11 @@ def _parse_header_info(main_data, listing_data, listing_url):
 
 
 def _parse_price_is_negotiable(price_type, listing_url):
-    if price_type is not None and price_type != "Negotiable":
+    if (
+        price_type is not None
+        and price_type != "Negotiable"
+        and price_type != "Starting From"
+    ):
         logger.warning(f"Found unexpected price type {price_type} for {listing_url}")
     return price_type == "Negotiable"
 
@@ -263,9 +262,6 @@ def _parse_nearest_mrt_data(items, listing_url):
         if not item["isFutureLine"]
     ]
     if len(non_future_infos) == 0:
-        logger.warning(
-            f"Did not find any non-future nearest MRT info for {listing_url}"
-        )
         return NearestMrtInfo(
             name=None,
             distance_metres=None,
@@ -340,7 +336,7 @@ def _parse_top_year(year_text, listing_url):
             f"TOP year item {year_text} did not match the known pattern for {listing_url}"
         )
         return None
-    return int(match.group(1))
+    return int(match.group(2))
 
 
 def _parse_listed_date(listed_date_text, listing_data, listing_url):
