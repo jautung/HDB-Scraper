@@ -35,6 +35,7 @@ class BrowserUtil:
         wait_until="networkidle0",
         wait_for_selector=None,
         timeout=None,
+        validate_after_navigate=None,
         current_attempt=1,
     ):
         await self._maybe_close_page()
@@ -48,6 +49,7 @@ class BrowserUtil:
                     wait_until=wait_until,
                     wait_for_selector=wait_for_selector,
                     timeout=timeout,
+                    validate_after_navigate=validate_after_navigate,
                 ),
                 timeout=self.single_browser_run_timeout_seconds,
             )
@@ -72,6 +74,7 @@ class BrowserUtil:
                 wait_until=wait_until,
                 wait_for_selector=wait_for_selector,
                 timeout=timeout,
+                validate_after_navigate=validate_after_navigate,
                 current_attempt=current_attempt + 1,
             )
 
@@ -95,6 +98,7 @@ class BrowserUtil:
                 wait_until=wait_until,
                 wait_for_selector=wait_for_selector,
                 timeout=timeout,
+                validate_after_navigate=validate_after_navigate,
                 current_attempt=current_attempt + 1,
             )
 
@@ -109,6 +113,7 @@ class BrowserUtil:
         wait_until,
         wait_for_selector,
         timeout,
+        validate_after_navigate,
     ):
         self.page = await (await self._get_browser()).newPage()
         if self.user_agent is not None:
@@ -124,6 +129,10 @@ class BrowserUtil:
                 await self.page.goto(url, waitUntil=wait_until, timeout=timeout)
             except pyppeteer.errors.TimeoutError as e:
                 logger.debug("Continuing after timeout for 'goto' navigation")
+
+        if validate_after_navigate is not None:
+            if not validate_after_navigate(new_page_url=self.page.url):
+                return None
 
         if wait_for_selector is not None:
             logger.debug(f"Waiting for selector {wait_for_selector}")

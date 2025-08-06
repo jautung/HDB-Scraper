@@ -5,6 +5,7 @@ import csv
 import datetime
 import logging
 import os
+import re
 import bs4
 import browser_util
 import file_util
@@ -18,6 +19,7 @@ MAX_ATTEMPTS_FOR_NETWORK_ERROR = 5
 MAX_ATTEMPTS_FOR_OTHER_ERROR = 3
 MAX_ATTEMPTS_FOR_CLOUDFLARE_WAIT = 5
 MRT_DISTANCE_PATTERN = r"^([\d.]+) (m|km) \((\d+) mins\) from ([A-Z]+\d+) .+$"
+LISTING_PATTERN = r"^https://www\.propertyguru\.com\.sg/listing/(?:.*-)?(\d+)$"
 logger = logging.getLogger(__name__)
 
 
@@ -128,6 +130,9 @@ async def _scrape_single_listing(
         wait_until="domcontentloaded",
         wait_for_selector='h1[da-id="property-title"]',
         timeout=NAVIGATION_TIMEOUT_SECONDS * 1000,
+        validate_after_navigate=_get_validate_after_navigate(
+            listing_url=listing_url, debug_logging_name=debug_logging_name
+        ),
     )
     if html is None:
         return None
@@ -163,6 +168,37 @@ async def _scrape_single_listing(
     )
     logger.info(f"Finished scraping {debug_logging_name}")
     return listing_info
+
+
+def _get_validate_after_navigate(listing_url, debug_logging_name):
+    def validate_after_navigate(new_page_url):
+        if new_page_url == "about:blank":
+            logger.info(
+                f"Skipping {debug_logging_name} because it redirected to about:blank"
+            )
+            return False
+        normalized_listing_url = _parse_and_normalize_listing(listing_url)
+        normalized_new_page_url = _parse_and_normalize_listing(new_page_url)
+        if normalized_listing_url is None or normalized_new_page_url is None:
+            logger.info(
+                f"Skipping {debug_logging_name} because redirected URL {new_page_url} could not be parsed"
+            )
+            return False
+        if normalized_listing_url != normalized_new_page_url:
+            logger.info(
+                f"Skipping {debug_logging_name} because redirected URL {new_page_url} is different from original"
+            )
+            return False
+        return True
+
+    return validate_after_navigate
+
+
+def _parse_and_normalize_listing(link):
+    match = re.search(LISTING_PATTERN, link)
+    if match is None:
+        return None
+    return f"https://www.propertyguru.com.sg/listing/{match.group(1)}"
 
 
 def _write_full_results_headers(full_results_writer):
