@@ -382,7 +382,8 @@ def _parse_extra_info(main_data, listing_data, listing_url):
         listing_url=listing_url,
         debug_logging_name="agent_name",
     )
-    agent_agency = agent_card_data["agency"]["name"]
+    agent_agency_data = agent_card_data["agency"]
+    agent_agency = agent_agency["name"] if agent_agency is not None else None
     agent_profile_url = f"{PROPERTY_GURU_BASE_URL}{agent_info_data['profileUrl']}"
 
     amenities_data = main_data["amenitiesData"]
