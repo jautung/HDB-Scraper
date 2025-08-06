@@ -131,7 +131,8 @@ class BrowserUtil:
                 logger.debug("Continuing after timeout for 'goto' navigation")
 
         if validate_after_navigate is not None:
-            if not validate_after_navigate(new_page_url=self.page.url):
+            logger.debug("Validating page after 'goto' navigation")
+            if not await validate_after_navigate(new_page=self.page):
                 return None
 
         if wait_for_selector is not None:

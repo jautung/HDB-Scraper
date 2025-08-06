@@ -171,12 +171,14 @@ async def _scrape_single_listing(
 
 
 def _get_validate_after_navigate(listing_url, debug_logging_name):
-    def validate_after_navigate(new_page_url):
+    async def validate_after_navigate(new_page):
+        new_page_url = new_page.url
         if new_page_url == "about:blank":
             logger.info(
                 f"Skipping {debug_logging_name} because it redirected to about:blank"
             )
             return False
+
         normalized_listing_url = _parse_and_normalize_listing(listing_url)
         normalized_new_page_url = _parse_and_normalize_listing(new_page_url)
         if normalized_listing_url is None or normalized_new_page_url is None:
@@ -189,6 +191,14 @@ def _get_validate_after_navigate(listing_url, debug_logging_name):
                 f"Skipping {debug_logging_name} because redirected URL {new_page_url} is different from original"
             )
             return False
+
+        html = await new_page.content()
+        if "Oops! Page not found" in html:
+            logger.info(
+                f"Skipping {debug_logging_name} because hit 'page not found' page"
+            )
+            return False
+
         return True
 
     return validate_after_navigate
