@@ -241,7 +241,7 @@ def _parse_details_info(main_data, listing_data, listing_url):
         tenanted_status=metatable_details_info.tenanted_status,
         floor_level=metatable_details_info.floor_level,
         description_subtitle=description_data["subtitle"],
-        description_details=description_data["description"],
+        description_details=_clean_description_details(description_data["description"]),
     )
 
 
@@ -336,6 +336,21 @@ def _parse_metatable_details_data(items, listing_data, listing_url):
     )
 
 
+def _clean_description_details(details_text):
+    # This often contains a bunch of HTML fluff of <br>s and masked phone numbers
+    details_text = re.sub(r"<br\s*/?>", "\n", details_text, flags=re.IGNORECASE)
+    details_text = re.sub(
+        r"\s*<span[^>]*>.*?</span>\s*", " **** ", details_text, flags=re.DOTALL
+    )
+    details_text = details_text.replace("\xa0", " ")
+    details_text = details_text.replace("&gt;", ">")
+    details_text = details_text.replace("&lt;", "<")
+    details_text = details_text.replace("&amp;", "&")
+    details_text = details_text.replace("&quot;", '"')
+    details_text = re.sub(r"\n\s*\n+", "\n\n", details_text).strip()
+    return details_text
+
+
 def _parse_top_year(year_text, listing_url):
     match = re.search(TOP_YEAR_PATTERN, year_text)
     if match is None:
@@ -383,7 +398,7 @@ def _parse_extra_info(main_data, listing_data, listing_url):
         debug_logging_name="agent_name",
     )
     agent_agency_data = agent_card_data["agency"]
-    agent_agency = agent_agency_data["name"] if agent_agency is not None else None
+    agent_agency = agent_agency_data["name"] if agent_agency_data is not None else None
     agent_profile_url = f"{PROPERTY_GURU_BASE_URL}{agent_info_data['profileUrl']}"
 
     amenities_data = main_data["amenitiesData"]
