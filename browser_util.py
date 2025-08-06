@@ -132,7 +132,10 @@ class BrowserUtil:
 
         if validate_after_navigate is not None:
             logger.debug("Validating page after 'goto' navigation")
-            if not await validate_after_navigate(new_page=self.page):
+            html = await self.page.content()
+            if not validate_after_navigate(
+                new_page_url=self.page.url, new_page_html=html
+            ):
                 return None
 
         if wait_for_selector is not None:
