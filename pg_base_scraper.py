@@ -193,7 +193,7 @@ def _get_validate_after_navigate(listing_url, debug_logging_name):
             return False
 
         html = await new_page.content()
-        if "Oops! Page not found" in html:
+        if "error-page-view-root" in html:
             logger.info(
                 f"Skipping {debug_logging_name} because hit 'page not found' page"
             )
