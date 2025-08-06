@@ -306,7 +306,11 @@ def _parse_metatable_details_data(items, listing_data, listing_url):
     developer_item = next(
         (item for item in items if item["icon"] == "new-project-o"), None
     )
-    if developer_item["value"] != "Developed by Housing & Development Board\xa0(HDB)":
+    if (
+        developer_item is not None
+        and developer_item["value"]
+        != "Developed by Housing & Development Board\xa0(HDB)"
+    ):
         logger.warning(f"Found a non-HDB unit at {listing_url}")
 
     return MetatableDetailsData(
