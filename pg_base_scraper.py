@@ -55,6 +55,8 @@ async def _scrape_listings():
 
         listing_urls = list(listings_reader)
         num_listings = len(listing_urls)
+        num_already_exists = 0
+        num_skipped = 0
         num_written = 0
         for listing_index, listing_row in enumerate(listing_urls):
             assert len(listing_row) == 1
@@ -67,6 +69,7 @@ async def _scrape_listings():
                 logger.info(
                     f"Skipping {debug_logging_name} because it is already processed"
                 )
+                num_already_exists += 1
                 continue
 
             listing_info = await _scrape_single_listing(
@@ -78,6 +81,7 @@ async def _scrape_listings():
                 logger.warning(
                     f"Unable to scrape {debug_logging_name}, skipping writing to {file_util.PG_FULL_RESULTS_FILENAME}"
                 )
+                num_skipped += 1
                 continue
 
             _write_full_results_row(
@@ -92,6 +96,9 @@ async def _scrape_listings():
 
         logger.info(
             f"Successfully exported {num_written} scraped results to {file_util.PG_FULL_RESULTS_FILENAME}"
+        )
+        logger.info(
+            f"Skipped {num_already_exists} already existing; {num_skipped} for other reasons"
         )
 
     await browser.maybe_close_browser()
