@@ -18,7 +18,11 @@ logger = logging.getLogger(__name__)
 def _get_all_mrt_station_names():
     logger.debug("Getting all MRT station names from Wikipedia")
 
-    response = requests.get(WIKIPEDIA_LIST_OF_MRT_STATIONS_URL, timeout=30)
+    response = requests.get(
+        WIKIPEDIA_LIST_OF_MRT_STATIONS_URL,
+        headers={"User-Agent": "HdbScraper/1.0 (https://github.com/jautung)"},
+        timeout=30,
+    )
     assert response.status_code == 200
 
     # N/B: Wikipedia stores the list of MRT station names in 'tables',

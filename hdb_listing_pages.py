@@ -59,9 +59,11 @@ async def _get_listing_urls():
             ]
             listing_urls = [
                 # Many URLs are just encoded as '/home/resale/xxx'
-                HDB_URL_PREFIX + listing_url
-                if listing_url.startswith("/")
-                else listing_url
+                (
+                    HDB_URL_PREFIX + listing_url
+                    if listing_url.startswith("/")
+                    else listing_url
+                )
                 for listing_url in listing_urls
             ]
 

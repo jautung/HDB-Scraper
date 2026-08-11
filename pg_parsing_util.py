@@ -204,12 +204,12 @@ def _parse_room_and_area_data(items, listing_url):
             f"Did not find an 'area' items within 'amenities' for {listing_url}"
         )
     return RoomAndAreaData(
-        num_bedrooms=text_to_num(bedrooms_item["value"])
-        if bedrooms_item is not None
-        else None,
-        num_bathrooms=text_to_num(bathrooms_item["value"])
-        if bathrooms_item is not None
-        else None,
+        num_bedrooms=(
+            text_to_num(bedrooms_item["value"]) if bedrooms_item is not None else None
+        ),
+        num_bathrooms=(
+            text_to_num(bathrooms_item["value"]) if bathrooms_item is not None else None
+        ),
         area_sqft=text_to_num(area_item["value"]) if area_item is not None else None,
     )
 
@@ -314,24 +314,28 @@ def _parse_metatable_details_data(items, listing_data, listing_url):
         logger.warning(f"Found a non-HDB unit at {listing_url}")
 
     return MetatableDetailsData(
-        furnished_status=furnished_status_item["value"]
-        if furnished_status_item is not None
-        else None,
-        top_year=_parse_top_year(
-            year_text=top_year_item["value"], listing_url=listing_url
-        )
-        if top_year_item is not None
-        else None,
-        listed_date=_parse_listed_date(
-            listed_date_text=listed_date_item["value"],
-            listing_data=listing_data,
-            listing_url=listing_url,
-        )
-        if listed_date_item is not None
-        else None,
-        tenanted_status=tenanted_status_item["value"]
-        if tenanted_status_item is not None
-        else None,
+        furnished_status=(
+            furnished_status_item["value"]
+            if furnished_status_item is not None
+            else None
+        ),
+        top_year=(
+            _parse_top_year(year_text=top_year_item["value"], listing_url=listing_url)
+            if top_year_item is not None
+            else None
+        ),
+        listed_date=(
+            _parse_listed_date(
+                listed_date_text=listed_date_item["value"],
+                listing_data=listing_data,
+                listing_url=listing_url,
+            )
+            if listed_date_item is not None
+            else None
+        ),
+        tenanted_status=(
+            tenanted_status_item["value"] if tenanted_status_item is not None else None
+        ),
         floor_level=floor_level_item["value"] if floor_level_item is not None else None,
     )
 
