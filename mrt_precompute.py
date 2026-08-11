@@ -12,6 +12,7 @@ import gmaps_util
 WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
     "https://en.wikipedia.org/wiki/List_of_Singapore_MRT_stations"
 )
+IN_OPERATION_ARIA = "In_operation"
 logger = logging.getLogger(__name__)
 
 
@@ -25,16 +26,31 @@ def _get_all_mrt_station_names():
     )
     assert response.status_code == 200
 
-    # N/B: Wikipedia stores the list of MRT station names in 'tables',
-    # each with a link to the dedicated page for the MRT station,
-    # with italicized names being 'future' stations (and are thus excluded);
-    # this italic <i> tag can be either INSIDE or OUTSIDE the <a> tag, for some reason...
+    # Find the specific "In operation" section and extract the first
+    # wikitable from that section. This avoids scanning the other
+    # tables (Non-operational / Under construction) on the page.
     html_soup = bs4.BeautifulSoup(response.text, "html.parser")
     all_mrt_station_names = set()
-    all_tables = html_soup.select("table.wikitable.sortable")
-    for table in all_tables:
-        links_in_table = table.find_all("a", href=True)
-        for link in links_in_table:
+
+    # Locate the <section> for the In operation table using the aria-labelledby
+    section = html_soup.find("section", attrs={"aria-labelledby": IN_OPERATION_ARIA})
+    if section is None:
+        logger.warning("Could not locate the 'In operation' section on the page")
+        return all_mrt_station_names
+
+    table = section.find(
+        "table", class_=lambda c: c and "wikitable" in c and "sortable" in c
+    )
+    if table is None:
+        logger.warning("Could not locate the 'In operation' table inside the section")
+        return all_mrt_station_names
+
+    for row in table.find_all("tr"):
+        # Skip header-only rows.
+        if not row.find_all("td"):
+            continue
+
+        for link in row.find_all("a", href=True):
             link_href = link["href"]
             if not re.search(
                 pattern=r"_MRT_station$", string=link_href, flags=re.IGNORECASE
