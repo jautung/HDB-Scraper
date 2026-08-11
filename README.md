@@ -37,6 +37,7 @@ in the event of any unexpected errors (including network errors).
 So, running the full sequence will look like:
 
 ```bash
+# Remember to set GOOGLE_MAPS_API_KEY
 python3 mrt_precompute.py
 python3 hdb_listing_pages.py
 python3 hdb_base_scraper.py

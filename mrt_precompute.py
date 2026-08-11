@@ -31,7 +31,7 @@ def _get_all_mrt_station_names():
     # this italic <i> tag can be either INSIDE or OUTSIDE the <a> tag, for some reason...
     html_soup = bs4.BeautifulSoup(response.text, "html.parser")
     all_mrt_station_names = set()
-    all_tables = html_soup.find_all("table", class_="wikitable sortable")
+    all_tables = html_soup.select("table.wikitable.sortable")
     for table in all_tables:
         links_in_table = table.find_all("a", href=True)
         for link in links_in_table:
@@ -46,8 +46,12 @@ def _get_all_mrt_station_names():
                 continue
             if link.find_parent("i") is not None:
                 continue
-            assert link_href.startswith("/wiki/")
-            mrt_station_name = link_href[len("/wiki/") :].replace("_", " ")
+            assert link_href.startswith(("/wiki/", "https://en.wikipedia.org/wiki/"))
+            if link_href.startswith("/wiki/"):
+                mrt_station_name = link_href[len("/wiki/") :]
+            else:
+                mrt_station_name = link_href[len("https://en.wikipedia.org/wiki/") :]
+            mrt_station_name = mrt_station_name.replace("_", " ")
             all_mrt_station_names.add(mrt_station_name)
 
     logger.info(f"Obtained {len(all_mrt_station_names)} MRT station names!")
