@@ -102,7 +102,9 @@ FIELDNAMES = [
 ]
 
 
-def fetch_all_listings(payload=None, session=None, retries=4, backoff=2.0, timeout=30, debug=False):
+def fetch_all_listings(
+    payload=None, session=None, retries=4, backoff=2.0, timeout=30, debug=False
+):
     """Call the public map API and return the raw JSON list of pin objects.
 
     The API sits behind a double-submit CSRF check: the server hands out a
@@ -128,7 +130,9 @@ def fetch_all_listings(payload=None, session=None, retries=4, backoff=2.0, timeo
             headers["x-xsrf-token"] = token
             _debug(f"attempt {attempt}: sending with x-xsrf-token={token}")
         else:
-            _debug(f"attempt {attempt}: no XSRF-TOKEN cookie yet, sending without header (priming request)")
+            _debug(
+                f"attempt {attempt}: no XSRF-TOKEN cookie yet, sending without header (priming request)"
+            )
 
         try:
             resp = sess.post(API_URL, headers=headers, json=payload, timeout=timeout)
@@ -141,7 +145,9 @@ def fetch_all_listings(payload=None, session=None, retries=4, backoff=2.0, timeo
                     # Server just handed us a usable token via Set-Cookie on
                     # this very 403 -- retry immediately with it, no backoff
                     # wait needed since this isn't rate limiting.
-                    _debug(f"attempt {attempt}: got fresh XSRF-TOKEN from 403 response, retrying immediately")
+                    _debug(
+                        f"attempt {attempt}: got fresh XSRF-TOKEN from 403 response, retrying immediately"
+                    )
                     continue
                 resp.raise_for_status()
 
@@ -168,7 +174,9 @@ def flatten_pins(pins):
         coords_raw = pin.get("coords", "")
         lat, lon = None, None
         try:
-            parsed = json.loads(coords_raw) if isinstance(coords_raw, str) else coords_raw
+            parsed = (
+                json.loads(coords_raw) if isinstance(coords_raw, str) else coords_raw
+            )
             if isinstance(parsed, (list, tuple)) and len(parsed) == 2:
                 lat, lon = parsed[0], parsed[1]
         except (json.JSONDecodeError, TypeError):
@@ -180,7 +188,9 @@ def flatten_pins(pins):
             rows.append(
                 {
                     "listing_id": listing_id,
-                    "url": LISTING_URL_TEMPLATE.format(id=listing_id) if listing_id else "",
+                    "url": (
+                        LISTING_URL_TEMPLATE.format(id=listing_id) if listing_id else ""
+                    ),
                     "title": f"{listing.get('type', '')} at {addr}".strip(),
                     "address": addr,
                     "region": region,
@@ -213,7 +223,9 @@ def write_json(rows, path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape HDB resale flat listing index.")
+    parser = argparse.ArgumentParser(
+        description="Scrape HDB resale flat listing index."
+    )
     parser.add_argument(
         "--out",
         default="hdb_resale_listings",
