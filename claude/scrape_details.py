@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
 Step 2: for each listing_id produced by scrape_listings.py, fetch the full
-detail record by chaining five HDB Flat Portal API calls:
+detail record by chaining API calls:
 
-  1. POST .../v1/listing/resale/detailsJdbc      {"listingId": id}
-  2. POST .../v1/resale/getAllImagesByListing     {"listingId": id}
-  3. POST .../v1/map/getListingCoordinates        {"listingId": id}
-  4. POST .../v1/listing/getFlatUpgradingDescription  {"postalCode": <from #1>}
-  5. POST .../v1/transaction/getPastTransaction   {"postal": <from #1>, "flatType": <from #1>}
-
-(4) and (5) depend on fields returned by (1), so they must run after it.
+    1. POST .../v1/listing/resale/detailsJdbc      {"listingId": id}
+    2. POST .../v1/resale/getAllImagesByListing     {"listingId": id}
+    3. POST .../v1/map/getListingCoordinates        {"listingId": id}
+    4. POST .../v1/listing/getFlatUpgradingDescription  {"postalCode": <from #1>}
 
 Output (under `output/` by default):
-  - <out>.csv              one row per listing (listings index columns + detail fields)
-  - <out>_transactions.csv one row per past transaction, linked by listing_id
+    - <out>.csv              one row per listing (listings index columns + detail fields)
 
 Columns shared with the listings CSV (listing_id, url, flat_type, price,
 latitude, longitude) come from the detail API. Listings-only columns
@@ -55,23 +51,6 @@ IMAGES_URL = (
 )
 COORDS_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/map/getListingCoordinates"
 UPGRADING_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/listing/getFlatUpgradingDescription"
-PAST_TXN_URL = (
-    "https://api.homes.hdb.gov.sg/flatback/public/v1/transaction/getPastTransaction"
-)
-
-TXN_FIELDNAMES = [
-    "listing_id",
-    "street",
-    "block",
-    "range",
-    "floor_area_sqm",
-    "model",
-    "lease_comm",
-    "lease_tenure_years",
-    "lease_tenure_months",
-    "resale_price",
-    "registration_date",
-]
 
 
 def load_listings_index(input_path):
@@ -147,15 +126,6 @@ def load_existing_details(output_path):
     return out
 
 
-def load_kept_transactions(txn_path, keep_ids):
-    """Read existing transaction rows, keeping only ones whose listing_id is in keep_ids
-    (i.e. belongs to a listing that succeeded and is being preserved across the resume).
-    """
-    # With append-only details output we no longer need to selectively
-    # re-seed transaction rows; transactions will be appended per-run.
-    return []
-
-
 def fetch_listing_detail(
     session, listing_id, index_row=None, retries=4, backoff=2.0, timeout=30, debug=False
 ):
@@ -171,7 +141,6 @@ def fetch_listing_detail(
     row["listing_id"] = listing_id
     row["url"] = LISTING_URL_TEMPLATE.format(id=listing_id)
     apply_listings_index(row, index_row)
-    txn_rows = []
     warnings = []
 
     def call(url, payload):
@@ -192,7 +161,7 @@ def fetch_listing_detail(
             f"[error] listing {listing_id} failed (core details call): {exc}",
             file=sys.stderr,
         )
-        return None, txn_rows
+        return None
 
     row["flat_type"] = details.get("flatType", "")
     row["town"] = details.get("town", "")
@@ -261,44 +230,12 @@ def fetch_listing_detail(
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"upgrading_description: {exc}")
 
-    # --- past transactions (soft-fail, needs postal + flatType) ---
-    # NB: legitimately 404s for flats with no resale history at that address --
-    # that's not a scrape error, just "no data", so we don't want it to look
-    # like one in the warnings.
-    flat_type = details.get("flatType")
-    if postal and flat_type:
-        try:
-            past = call(PAST_TXN_URL, {"postal": postal, "flatType": flat_type}) or {}
-            trans_list = past.get("listTrans") or []
-            row["past_transaction_count"] = len(trans_list)
-            for t in trans_list:
-                txn_rows.append(
-                    {
-                        "listing_id": listing_id,
-                        "street": t.get("street", "").strip(),
-                        "block": t.get("block", ""),
-                        "range": t.get("range", ""),
-                        "floor_area_sqm": t.get("floorArea", ""),
-                        "model": t.get("model", ""),
-                        "lease_comm": t.get("leaseComm", ""),
-                        "lease_tenure_years": t.get("leaseTenure", ""),
-                        "lease_tenure_months": t.get("leaseTenureMonth", ""),
-                        "resale_price": t.get("resalePrice", ""),
-                        "registration_date": t.get("registrationDate", ""),
-                    }
-                )
-        except Exception as exc:  # noqa: BLE001
-            if "404" in str(exc):
-                row["past_transaction_count"] = 0
-            else:
-                warnings.append(f"past_transactions: {exc}")
-
     if warnings:
         print(
             f"[warn] listing {listing_id} warnings: {'; '.join(warnings)}",
             file=sys.stderr,
         )
-    return row, txn_rows
+    return row
 
 
 def main():
@@ -313,7 +250,7 @@ def main():
     parser.add_argument(
         "--out",
         default=DEFAULT_DETAILS_BASE,
-        help=f"Output file base name (without extension). Writes <out>.csv and <out>_transactions.csv. Default: {DEFAULT_DETAILS_BASE}",
+        help=f"Output file base name (without extension). Default: {DEFAULT_DETAILS_BASE}",
     )
     parser.add_argument(
         "--delay",
@@ -334,9 +271,7 @@ def main():
     args = parser.parse_args()
 
     detail_path = f"{args.out}.csv"
-    txn_path = f"{args.out}_transactions.csv"
     ensure_parent_dir(detail_path)
-    ensure_parent_dir(txn_path)
 
     ids, listings_index = load_listings_index(args.input)
     print(f"Loaded {len(ids)} listing_id(s) from {args.input}")
@@ -352,13 +287,12 @@ def main():
     session = new_session()
 
     touched = set()
-    all_txns = []
     ok_count = 0
     err_count = 0
 
     # Process each listing and update in-memory `existing` mapping; do not append rows.
     for i, listing_id in enumerate(ids, 1):
-        row, txn_rows = fetch_listing_detail(
+        row = fetch_listing_detail(
             session, listing_id, listings_index.get(listing_id), debug=args.debug
         )
         if row is None:
@@ -387,10 +321,6 @@ def main():
         existing[listing_id] = normalize_detail_row(row)
         touched.add(listing_id)
 
-        # Collect transactions to append later
-        for t in txn_rows:
-            all_txns.append(t)
-
         ok_count += 1
         if i % 25 == 0 or i == len(ids):
             print(
@@ -398,7 +328,6 @@ def main():
             )
         if args.delay and i < len(ids):
             time.sleep(args.delay)
-    txn_is_new = not os.path.exists(txn_path)
     # Any existing listing not touched this run should be marked as not listed.
     # Do NOT update `latest_scraped` for untouched rows — only change
     # `latest_scraped` when we actually fetched/updated the row.
@@ -413,18 +342,7 @@ def main():
         for lid in sorted(existing.keys()):
             writer.writerow(existing[lid])
 
-    # Append transactions
-    txn_is_new = not os.path.exists(txn_path)
-    with open(txn_path, "a", newline="", encoding="utf-8") as tf:
-        txn_writer = csv.DictWriter(tf, fieldnames=TXN_FIELDNAMES)
-        if txn_is_new:
-            txn_writer.writeheader()
-        for t in all_txns:
-            txn_writer.writerow(t)
-
-    print(
-        f"Done. Wrote current details -> {detail_path}, appended transactions -> {txn_path}"
-    )
+    print(f"Done. Wrote current details -> {detail_path}")
     if err_count:
         print(f"{err_count} listing(s) failed during fetch.", file=sys.stderr)
 

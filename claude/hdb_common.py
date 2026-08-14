@@ -81,7 +81,6 @@ DETAIL_SPECIFIC_FIELDNAMES = [
     "photo_urls",
     "upgrading_tooltip",
     "upgrading_short_desc",
-    "past_transaction_count",
     "earliest_scraped",
     "latest_scraped",
     "is_still_listed",

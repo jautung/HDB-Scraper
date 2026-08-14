@@ -30,9 +30,8 @@ Run both scripts from this directory (`claude/`). All outputs go into
    - Output into `output/hdb_resale_listings.csv`
 2. **`scrape_details.py`**:
    For each `listing_id` from step 1, fetch the full detail record
-   (photos, coordinates, upgrading info, past transactions, agent details, etc.)
+   (photos, coordinates, upgrading info, agent details, etc.)
    - Output into `output/hdb_resale_details.csv`
-   - Output into `output/hdb_resale_details_transactions.csv`
 
 So, running the full sequence will look like:
 
