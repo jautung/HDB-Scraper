@@ -6,12 +6,12 @@ A way to get all the listings from the [HDB resale portal](https://homes.hdb.gov
 
 ### Setup requirements
 
-Only `requests` is needed beyond the Python standard library:
-
 ```bash
 python3 -m venv venv
 source venv/activate
+pip install bs4
 pip install requests
+pip install googlemaps
 ```
 
 ### To run

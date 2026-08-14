@@ -6,7 +6,6 @@ import os
 import re
 import bs4
 import requests
-import file_util
 import gmaps_util
 
 WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
@@ -14,6 +13,13 @@ WIKIPEDIA_LIST_OF_MRT_STATIONS_URL = (
 )
 IN_OPERATION_ARIA = "In_operation"
 logger = logging.getLogger(__name__)
+
+OUTPUT_FOLDER = "output"
+PRECOMPUTE_FILENAME = "mrt_lat_lon.csv"
+
+
+def maybe_create_output_folder():
+    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 def _get_all_mrt_station_names():
@@ -79,7 +85,7 @@ def _precompute_mrt_station_map(all_mrt_station_names):
     gmaps = gmaps_util.get_gmaps_client()
 
     with open(
-        os.path.join(file_util.OUTPUT_FOLDER, file_util.PRECOMPUTE_FILENAME),
+        os.path.join(OUTPUT_FOLDER, PRECOMPUTE_FILENAME),
         "w",
         newline="",
         encoding="utf-8",
@@ -112,7 +118,7 @@ def main():
         datefmt="%H:%M:%S",
     )
 
-    file_util.maybe_create_output_folder()
+    maybe_create_output_folder()
     all_mrt_station_names = _get_all_mrt_station_names()
     _precompute_mrt_station_map(all_mrt_station_names=all_mrt_station_names)
 
