@@ -11,7 +11,8 @@ server-side pagination observed) as a list of "map pin" objects, each of
 which can bundle multiple listings (`desc` is a list) at the same
 coordinate/address.
 
-Output: one row per listing (i.e. per `desc` entry), flattened to CSV.
+Output: one row per listing (i.e. per `desc` entry), flattened to CSV
+under `output/` by default.
 
 Listing detail pages live at https://homes.hdb.gov.sg/home/resale/{id}
 (confirmed). Step 2 (scrape_details.py, not yet written) will still need the
@@ -25,9 +26,11 @@ import json
 from datetime import datetime, timezone
 
 from hdb_common import (
+    DEFAULT_LISTINGS_BASE,
     HEADERS,
     PHOTO_BASE_URL,
     LISTING_URL_TEMPLATE,
+    ensure_parent_dir,
     new_session,
     post_json,
 )
@@ -160,8 +163,8 @@ def main():
     )
     parser.add_argument(
         "--out",
-        default="hdb_resale_listings",
-        help="Output CSV base name (without extension). Default: hdb_resale_listings",
+        default=DEFAULT_LISTINGS_BASE,
+        help=f"Output CSV base name (without extension). Default: {DEFAULT_LISTINGS_BASE}",
     )
     parser.add_argument(
         "--debug",
@@ -181,6 +184,7 @@ def main():
     print(f"Scrape timestamp: {timestamp}")
 
     csv_path = f"{args.out}.csv"
+    ensure_parent_dir(csv_path)
     write_csv(rows, csv_path)
     print(f"Wrote CSV -> {csv_path}")
 

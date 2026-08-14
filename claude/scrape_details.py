@@ -11,7 +11,7 @@ detail record by chaining five HDB Flat Portal API calls:
 
 (4) and (5) depend on fields returned by (1), so they must run after it.
 
-Output:
+Output (under `output/` by default):
   - <out>.csv              one row per listing (flattened detail fields)
   - <out>_transactions.csv one row per past transaction, linked by listing_id
 
@@ -29,11 +29,14 @@ import sys
 import time
 
 from hdb_common import (
+    DEFAULT_DETAILS_BASE,
+    DEFAULT_LISTINGS_CSV,
     PHOTO_BASE_URL,
     LISTING_URL_TEMPLATE,
+    ensure_parent_dir,
+    extract_lat_lon,
     new_session,
     post_json,
-    extract_lat_lon,
 )
 
 DETAILS_URL = (
@@ -309,13 +312,13 @@ def main():
     )
     parser.add_argument(
         "--input",
-        default="hdb_resale_listings.csv",
-        help="CSV from scrape_listings.py containing a listing_id column. Default: hdb_resale_listings.csv",
+        default=DEFAULT_LISTINGS_CSV,
+        help=f"CSV from scrape_listings.py containing a listing_id column. Default: {DEFAULT_LISTINGS_CSV}",
     )
     parser.add_argument(
         "--out",
-        default="hdb_resale_details",
-        help="Output file base name (without extension). Writes <out>.csv and <out>_transactions.csv",
+        default=DEFAULT_DETAILS_BASE,
+        help=f"Output file base name (without extension). Writes <out>.csv and <out>_transactions.csv. Default: {DEFAULT_DETAILS_BASE}",
     )
     parser.add_argument(
         "--delay",
@@ -341,6 +344,8 @@ def main():
 
     detail_path = f"{args.out}.csv"
     txn_path = f"{args.out}_transactions.csv"
+    ensure_parent_dir(detail_path)
+    ensure_parent_dir(txn_path)
 
     ids = load_listing_ids(args.input)
     print(f"Loaded {len(ids)} listing_id(s) from {args.input}")

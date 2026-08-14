@@ -12,10 +12,17 @@ token it currently holds on every call.
 """
 
 import json
+import os
 import sys
 import time
 
 import requests
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
+DEFAULT_LISTINGS_BASE = os.path.join(OUTPUT_DIR, "hdb_resale_listings")
+DEFAULT_LISTINGS_CSV = f"{DEFAULT_LISTINGS_BASE}.csv"
+DEFAULT_DETAILS_BASE = os.path.join(OUTPUT_DIR, "hdb_resale_details")
 
 HEADERS = {
     "accept": "application/json, text/plain, */*",
@@ -37,6 +44,12 @@ HEADERS = {
 
 PHOTO_BASE_URL = "https://resource.homes.hdb.gov.sg/"
 LISTING_URL_TEMPLATE = "https://homes.hdb.gov.sg/home/resale/{id}"
+
+
+def ensure_parent_dir(path):
+    directory = os.path.dirname(os.path.abspath(path))
+    if directory:
+        os.makedirs(directory, exist_ok=True)
 
 
 def new_session():
