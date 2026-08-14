@@ -68,7 +68,9 @@ def post_json(session, url, payload, retries=4, backoff=2.0, timeout=30, debug=F
             if resp.status_code == 403:
                 new_token = session.cookies.get("XSRF-TOKEN")
                 if new_token and new_token != token:
-                    _debug(f"{url} attempt {attempt}: got fresh XSRF-TOKEN from 403, retrying immediately")
+                    _debug(
+                        f"{url} attempt {attempt}: got fresh XSRF-TOKEN from 403, retrying immediately"
+                    )
                     continue
                 resp.raise_for_status()
 
@@ -88,12 +90,18 @@ def post_json(session, url, payload, retries=4, backoff=2.0, timeout=30, debug=F
             if exc.response is not None and exc.response.status_code == 404:
                 raise RuntimeError(f"404 Not Found: {url}") from exc
             last_err = exc
-            print(f"[warn] {url} attempt {attempt}/{retries} failed: {exc}", file=sys.stderr)
+            print(
+                f"[warn] {url} attempt {attempt}/{retries} failed: {exc}",
+                file=sys.stderr,
+            )
             if attempt < retries:
                 time.sleep(backoff * attempt)
         except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
             last_err = exc
-            print(f"[warn] {url} attempt {attempt}/{retries} failed: {exc}", file=sys.stderr)
+            print(
+                f"[warn] {url} attempt {attempt}/{retries} failed: {exc}",
+                file=sys.stderr,
+            )
             if attempt < retries:
                 time.sleep(backoff * attempt)
     raise RuntimeError(f"Failed POST to {url} after {retries} attempts: {last_err}")
@@ -107,7 +115,9 @@ def extract_lat_lon(coords_value):
     if coords_value is None:
         return None, None
     try:
-        parsed = json.loads(coords_value) if isinstance(coords_value, str) else coords_value
+        parsed = (
+            json.loads(coords_value) if isinstance(coords_value, str) else coords_value
+        )
     except (json.JSONDecodeError, TypeError):
         return None, None
     if not isinstance(parsed, (list, tuple)) or len(parsed) != 2:

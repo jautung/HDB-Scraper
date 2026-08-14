@@ -28,13 +28,25 @@ import os
 import sys
 import time
 
-from hdb_common import PHOTO_BASE_URL, LISTING_URL_TEMPLATE, new_session, post_json, extract_lat_lon
+from hdb_common import (
+    PHOTO_BASE_URL,
+    LISTING_URL_TEMPLATE,
+    new_session,
+    post_json,
+    extract_lat_lon,
+)
 
-DETAILS_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/listing/resale/detailsJdbc"
-IMAGES_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/resale/getAllImagesByListing"
+DETAILS_URL = (
+    "https://api.homes.hdb.gov.sg/flatback/public/v1/listing/resale/detailsJdbc"
+)
+IMAGES_URL = (
+    "https://api.homes.hdb.gov.sg/flatback/public/v1/resale/getAllImagesByListing"
+)
 COORDS_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/map/getListingCoordinates"
 UPGRADING_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/listing/getFlatUpgradingDescription"
-PAST_TXN_URL = "https://api.homes.hdb.gov.sg/flatback/public/v1/transaction/getPastTransaction"
+PAST_TXN_URL = (
+    "https://api.homes.hdb.gov.sg/flatback/public/v1/transaction/getPastTransaction"
+)
 
 DETAIL_FIELDNAMES = [
     "listing_id",
@@ -99,7 +111,9 @@ def load_listing_ids(input_path):
     with open(input_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         if "listing_id" not in (reader.fieldnames or []):
-            raise ValueError(f"'listing_id' column not found in {input_path}. Columns seen: {reader.fieldnames}")
+            raise ValueError(
+                f"'listing_id' column not found in {input_path}. Columns seen: {reader.fieldnames}"
+            )
         for row in reader:
             lid = (row.get("listing_id") or "").strip()
             if lid:
@@ -141,7 +155,9 @@ def load_kept_transactions(txn_path, keep_ids):
     return kept
 
 
-def fetch_listing_detail(session, listing_id, retries=4, backoff=2.0, timeout=30, debug=False):
+def fetch_listing_detail(
+    session, listing_id, retries=4, backoff=2.0, timeout=30, debug=False
+):
     """Fetch full detail for one listing.
 
     detailsJdbc is treated as a hard requirement -- if it fails, the whole
@@ -160,14 +176,27 @@ def fetch_listing_detail(session, listing_id, retries=4, backoff=2.0, timeout=30
     warnings = []
 
     def call(url, payload):
-        return post_json(session, url, payload, retries=retries, backoff=backoff, timeout=timeout, debug=debug)
+        return post_json(
+            session,
+            url,
+            payload,
+            retries=retries,
+            backoff=backoff,
+            timeout=timeout,
+            debug=debug,
+        )
 
     try:
         details = call(DETAILS_URL, {"listingId": listing_id}) or {}
-    except Exception as exc:  # noqa: BLE001 -- hard failure, whole row is bad, will be retried
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 -- hard failure, whole row is bad, will be retried
         row["scraped_ok"] = "0"
         row["error"] = str(exc)
-        print(f"[error] listing {listing_id} failed (core details call): {exc}", file=sys.stderr)
+        print(
+            f"[error] listing {listing_id} failed (core details call): {exc}",
+            file=sys.stderr,
+        )
         return row, txn_rows
 
     row["flat_type"] = details.get("flatType", "")
@@ -200,7 +229,9 @@ def fetch_listing_detail(session, listing_id, retries=4, backoff=2.0, timeout=30
         row["agent_license_no"] = agent.get("licenseNo", "")
         row["agent_last_updated"] = agent.get("lastUpdated", "")
         row["listing_description"] = " | ".join(
-            (a.get("description") or "").replace("\n", " ") for a in agents if a.get("description")
+            (a.get("description") or "").replace("\n", " ")
+            for a in agents
+            if a.get("description")
         )
 
     main_photo = details.get("photo", "")
@@ -273,7 +304,9 @@ def fetch_listing_detail(session, listing_id, retries=4, backoff=2.0, timeout=30
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Scrape full details for each HDB resale listing_id.")
+    parser = argparse.ArgumentParser(
+        description="Scrape full details for each HDB resale listing_id."
+    )
     parser.add_argument(
         "--input",
         default="hdb_resale_listings.csv",
@@ -301,7 +334,9 @@ def main():
         action="store_true",
         help="Ignore any existing output CSV and start fresh instead of resuming.",
     )
-    parser.add_argument("--debug", action="store_true", help="Verbose per-request logging to stderr.")
+    parser.add_argument(
+        "--debug", action="store_true", help="Verbose per-request logging to stderr."
+    )
     args = parser.parse_args()
 
     detail_path = f"{args.out}.csv"
@@ -320,10 +355,14 @@ def main():
         kept_detail_rows, done_ids = load_successful_rows(detail_path)
         kept_txn_rows = load_kept_transactions(txn_path, done_ids)
     if done_ids:
-        print(f"Resuming: {len(done_ids)} listing(s) already succeeded in {detail_path}, will skip those.")
+        print(
+            f"Resuming: {len(done_ids)} listing(s) already succeeded in {detail_path}, will skip those."
+        )
 
     todo = [i for i in ids if i not in done_ids]
-    print(f"{len(todo)} listing(s) to fetch (includes retries of any previously-failed ones).")
+    print(
+        f"{len(todo)} listing(s) to fetch (includes retries of any previously-failed ones)."
+    )
 
     session = new_session()
 
@@ -359,7 +398,9 @@ def main():
                 err_count += 1
 
             if i % 25 == 0 or i == len(todo):
-                print(f"[{i}/{len(todo)}] ok={ok_count} err={err_count} (last: {listing_id})")
+                print(
+                    f"[{i}/{len(todo)}] ok={ok_count} err={err_count} (last: {listing_id})"
+                )
 
             if args.delay and i < len(todo):
                 time.sleep(args.delay)
