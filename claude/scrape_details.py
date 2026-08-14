@@ -128,6 +128,25 @@ def load_existing_earliest_map(output_path):
     return earliest
 
 
+def load_existing_details(output_path):
+    """Load existing detail rows into a mapping of listing_id -> row.
+
+    If multiple rows for the same listing_id exist, the last occurrence
+    in the file is used.
+    """
+    if not os.path.exists(output_path):
+        return {}
+    out = {}
+    with open(output_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            lid = (row.get("listing_id") or "").strip()
+            if not lid:
+                continue
+            out[lid] = row
+    return out
+
+
 def load_kept_transactions(txn_path, keep_ids):
     """Read existing transaction rows, keeping only ones whose listing_id is in keep_ids
     (i.e. belongs to a listing that succeeded and is being preserved across the resume).
@@ -308,11 +327,7 @@ def main():
         default=None,
         help="Only process the first N listings (useful for a test run).",
     )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Ignore any existing output CSV and start fresh instead of resuming.",
-    )
+    # Always append; no overwrite mode
     parser.add_argument(
         "--debug", action="store_true", help="Verbose per-request logging to stderr."
     )
@@ -330,89 +345,88 @@ def main():
         ids = ids[: args.limit]
         print(f"--limit set: processing only first {len(ids)}")
 
-    # Build map of existing earliest timestamps (used to preserve original
-    # earliest_scraped when appending subsequent rows). If --overwrite is
-    # specified we start fresh.
-    existing_earliest = (
-        {} if args.overwrite else load_existing_earliest_map(detail_path)
-    )
-
-    todo = ids
-    print(f"{len(todo)} listing(s) to fetch.")
+    # Load existing details and earliest timestamps to preserve earliest_scraped
+    existing = load_existing_details(detail_path)
+    existing_earliest = load_existing_earliest_map(detail_path)
 
     session = new_session()
 
-    detail_mode = "w" if args.overwrite else "a"
-    txn_mode = "w" if args.overwrite else "a"
+    touched = set()
+    all_txns = []
+    ok_count = 0
+    err_count = 0
 
-    # Open files for append (or overwrite) and write headers if newly created.
-    detail_is_new = not os.path.exists(detail_path) or args.overwrite
-    txn_is_new = not os.path.exists(txn_path) or args.overwrite
+    # Process each listing and update in-memory `existing` mapping; do not append rows.
+    for i, listing_id in enumerate(ids, 1):
+        row, txn_rows = fetch_listing_detail(
+            session, listing_id, listings_index.get(listing_id), debug=args.debug
+        )
+        if row is None:
+            err_count += 1
+            if i % 25 == 0 or i == len(ids):
+                print(
+                    f"[{i}/{len(ids)}] ok={ok_count} err={err_count} (last: {listing_id})"
+                )
+            if args.delay and i < len(ids):
+                time.sleep(args.delay)
+            continue
 
-    with open(detail_path, detail_mode, newline="", encoding="utf-8") as df, open(
-        txn_path, txn_mode, newline="", encoding="utf-8"
-    ) as tf:
-        detail_writer = csv.DictWriter(df, fieldnames=DETAIL_FIELDNAMES)
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        prev = existing.get(listing_id)
+        # preserve earliest from existing row, or from earliest map, or set to now
+        if prev and (prev.get("earliest_scraped") or ""):
+            row["earliest_scraped"] = prev.get("earliest_scraped")
+        else:
+            row["earliest_scraped"] = existing_earliest.get(listing_id) or now
+        row["latest_scraped"] = now
+        row["is_still_listed"] = "true"
+
+        apply_listings_index(row, listings_index.get(listing_id))
+
+        # Update in-memory record (single current row per listing)
+        existing[listing_id] = normalize_detail_row(row)
+        touched.add(listing_id)
+
+        # Collect transactions to append later
+        for t in txn_rows:
+            all_txns.append(t)
+
+        ok_count += 1
+        if i % 25 == 0 or i == len(ids):
+            print(
+                f"[{i}/{len(ids)}] ok={ok_count} err={err_count} (last: {listing_id})"
+            )
+        if args.delay and i < len(ids):
+            time.sleep(args.delay)
+    txn_is_new = not os.path.exists(txn_path)
+    # Any existing listing not touched this run should be marked as not listed.
+    # Do NOT update `latest_scraped` for untouched rows — only change
+    # `latest_scraped` when we actually fetched/updated the row.
+    for lid, r in list(existing.items()):
+        if lid not in touched:
+            r["is_still_listed"] = "false"
+
+    # Overwrite details CSV with one current row per listing
+    with open(detail_path, "w", newline="", encoding="utf-8") as df:
+        writer = csv.DictWriter(df, fieldnames=DETAIL_FIELDNAMES)
+        writer.writeheader()
+        for lid in sorted(existing.keys()):
+            writer.writerow(existing[lid])
+
+    # Append transactions
+    txn_is_new = not os.path.exists(txn_path)
+    with open(txn_path, "a", newline="", encoding="utf-8") as tf:
         txn_writer = csv.DictWriter(tf, fieldnames=TXN_FIELDNAMES)
-        if detail_is_new:
-            detail_writer.writeheader()
         if txn_is_new:
             txn_writer.writeheader()
+        for t in all_txns:
+            txn_writer.writerow(t)
 
-        df.flush()
-        tf.flush()
-
-        ok_count = 0
-        err_count = 0
-        for i, listing_id in enumerate(todo, 1):
-            row, txn_rows = fetch_listing_detail(
-                session,
-                listing_id,
-                listings_index.get(listing_id),
-                debug=args.debug,
-            )
-            if row is None:
-                err_count += 1
-                if i % 25 == 0 or i == len(todo):
-                    print(
-                        f"[{i}/{len(todo)}] ok={ok_count} err={err_count} (last: {listing_id})"
-                    )
-                if args.delay and i < len(todo):
-                    time.sleep(args.delay)
-                continue
-
-            # Timestamps: preserve earliest if we have one, otherwise set to now.
-            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            earliest = existing_earliest.get(listing_id) or now
-            row["earliest_scraped"] = earliest
-            row["latest_scraped"] = now
-            row["is_still_listed"] = "true"
-            # Remember earliest for any subsequent rows in this run.
-            existing_earliest.setdefault(listing_id, earliest)
-
-            detail_writer.writerow(normalize_detail_row(row))
-            for t in txn_rows:
-                txn_writer.writerow(t)
-            df.flush()
-            tf.flush()
-
-            ok_count += 1
-
-            if i % 25 == 0 or i == len(todo):
-                print(
-                    f"[{i}/{len(todo)}] ok={ok_count} err={err_count} (last: {listing_id})"
-                )
-
-            if args.delay and i < len(todo):
-                time.sleep(args.delay)
-
-    print(f"Done. Wrote details -> {detail_path}, transactions -> {txn_path}")
+    print(
+        f"Done. Wrote current details -> {detail_path}, appended transactions -> {txn_path}"
+    )
     if err_count:
-        print(
-            f"{err_count} listing(s) failed -- rerun the same command (without --overwrite) "
-            f"to retry just those, since already-succeeded listings are skipped.",
-            file=sys.stderr,
-        )
+        print(f"{err_count} listing(s) failed during fetch.", file=sys.stderr)
 
 
 if __name__ == "__main__":
