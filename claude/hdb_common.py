@@ -87,12 +87,23 @@ DETAIL_SPECIFIC_FIELDNAMES = [
     "is_still_listed",
 ]
 
+# MRT augmentation fields (added to details CSV so downstream can be filled)
+MRT_AUGMENT_FIELDS = [
+    "nearest_mrt_station",
+    "walking_duration_mins",
+    "straight_line_distance_km",
+    "walking_distance_km",
+]
+
 # Details CSV: listings index columns (minus area_sqm, photo_url) then detail-specific.
 # Shared names (listing_id, url, flat_type, price, latitude, longitude) are filled
 # from the detail API, not the listings CSV.
 DETAIL_FIELDNAMES = [
     c for c in LISTINGS_FIELDNAMES if c not in ("area_sqm", "photo_url")
 ] + DETAIL_SPECIFIC_FIELDNAMES
+
+# Include MRT augment fields at the end of detail fieldnames
+DETAIL_FIELDNAMES += MRT_AUGMENT_FIELDS
 
 HEADERS = {
     "accept": "application/json, text/plain, */*",
