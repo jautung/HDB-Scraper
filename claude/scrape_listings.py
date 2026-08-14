@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from hdb_common import (
     DEFAULT_LISTINGS_BASE,
     HEADERS,
+    LISTINGS_FIELDNAMES,
     PHOTO_BASE_URL,
     LISTING_URL_TEMPLATE,
     ensure_parent_dir,
@@ -60,24 +61,7 @@ DEFAULT_PAYLOAD = {
     "fullResult": True,
 }
 
-FIELDNAMES = [
-    "listing_id",
-    "url",
-    "title",
-    "address",
-    "region",
-    "flat_type",
-    "area_sqm",
-    "price",
-    "max_price",
-    "max_lease_years",
-    "created_at",
-    "latitude",
-    "longitude",
-    "photo_path",
-    "photo_url",
-    "raw_desc_json",
-]
+FIELDNAMES = LISTINGS_FIELDNAMES
 
 
 def fetch_all_listings(
@@ -131,7 +115,6 @@ def flatten_pins(pins):
                     "url": (
                         LISTING_URL_TEMPLATE.format(id=listing_id) if listing_id else ""
                     ),
-                    "title": f"{listing.get('type', '')} at {addr}".strip(),
                     "address": addr,
                     "region": region,
                     "flat_type": listing.get("type", ""),
@@ -142,9 +125,7 @@ def flatten_pins(pins):
                     "created_at": listing.get("createDt", ""),
                     "latitude": lat,
                     "longitude": lon,
-                    "photo_path": photo_path,
                     "photo_url": (PHOTO_BASE_URL + photo_path) if photo_path else "",
-                    "raw_desc_json": json.dumps(listing, ensure_ascii=False),
                 }
             )
     return rows

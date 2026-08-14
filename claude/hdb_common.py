@@ -24,6 +24,76 @@ DEFAULT_LISTINGS_BASE = os.path.join(OUTPUT_DIR, "hdb_resale_listings")
 DEFAULT_LISTINGS_CSV = f"{DEFAULT_LISTINGS_BASE}.csv"
 DEFAULT_DETAILS_BASE = os.path.join(OUTPUT_DIR, "hdb_resale_details")
 
+# Step 1 (scrape_listings.py) CSV columns
+LISTINGS_FIELDNAMES = [
+    "listing_id",
+    "url",
+    "address",
+    "region",
+    "flat_type",
+    "area_sqm",
+    "price",
+    "max_price",
+    "max_lease_years",
+    "created_at",
+    "latitude",
+    "longitude",
+    "photo_url",
+]
+
+# From the listings CSV, merged into the details row (detail API does not supply these)
+LISTINGS_INDEX_ONLY_FIELDNAMES = [
+    "address",
+    "region",
+    "max_price",
+    "max_lease_years",
+    "created_at",
+]
+
+# Step 2-only columns (appended after the listings index columns in the details CSV)
+DETAIL_SPECIFIC_FIELDNAMES = [
+    "town",
+    "street",
+    "block",
+    "postal",
+    "storey_range",
+    "floor_area_sqm",
+    "bedroom",
+    "bathroom",
+    "balcony",
+    "extension",
+    "contra",
+    "remaining_lease",
+    "ethnic_eligibility",
+    "spr_eligibility",
+    "ethnic_eligibility_date",
+    "managed_by_agent",
+    "agent_name",
+    "agent_number",
+    "agent_email",
+    "agent_agency_name",
+    "agent_cea_number",
+    "agent_license_no",
+    "listing_description",
+    "agent_last_updated",
+    "photo_main",
+    "photo_count",
+    "photo_urls",
+    "upgrading_tooltip",
+    "upgrading_short_desc",
+    "past_transaction_count",
+    "scraped_ok",
+    "warnings",
+    "error",
+]
+
+# Details CSV: listings index columns (minus area_sqm, photo_url) then detail-specific.
+# Shared names (listing_id, url, flat_type, price, latitude, longitude) are filled
+# from the detail API, not the listings CSV.
+DETAIL_FIELDNAMES = [
+    c for c in LISTINGS_FIELDNAMES if c not in ("area_sqm", "photo_url")
+] + DETAIL_SPECIFIC_FIELDNAMES
+
 HEADERS = {
     "accept": "application/json, text/plain, */*",
     "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",

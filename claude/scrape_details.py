@@ -12,8 +12,15 @@ detail record by chaining five HDB Flat Portal API calls:
 (4) and (5) depend on fields returned by (1), so they must run after it.
 
 Output (under `output/` by default):
-  - <out>.csv              one row per listing (flattened detail fields)
+  - <out>.csv              one row per listing (listings index columns + detail fields)
   - <out>_transactions.csv one row per past transaction, linked by listing_id
+
+Columns shared with the listings CSV (listing_id, url, flat_type, price,
+latitude, longitude) come from the detail API. Listings-only columns
+(address, region, max_price, max_lease_years, created_at) are copied from
+the step-1 CSV. area_sqm is omitted (floor_area_sqm from the detail API
+is used instead). photo_url from step 1 is omitted (photo_main / photo_urls
+from the detail API are used instead).
 
 Resumable: if the output CSV already exists, listing_ids already present in
 it are skipped on a re-run (use --overwrite to start fresh). Progress is
@@ -23,7 +30,6 @@ listing run doesn't lose completed work.
 
 import argparse
 import csv
-import json
 import os
 import sys
 import time
@@ -31,6 +37,8 @@ import time
 from hdb_common import (
     DEFAULT_DETAILS_BASE,
     DEFAULT_LISTINGS_CSV,
+    DETAIL_FIELDNAMES,
+    LISTINGS_INDEX_ONLY_FIELDNAMES,
     PHOTO_BASE_URL,
     LISTING_URL_TEMPLATE,
     ensure_parent_dir,
@@ -51,48 +59,6 @@ PAST_TXN_URL = (
     "https://api.homes.hdb.gov.sg/flatback/public/v1/transaction/getPastTransaction"
 )
 
-DETAIL_FIELDNAMES = [
-    "listing_id",
-    "url",
-    "flat_type",
-    "town",
-    "street",
-    "block",
-    "postal",
-    "storey_range",
-    "floor_area_sqm",
-    "bedroom",
-    "bathroom",
-    "balcony",
-    "extension",
-    "contra",
-    "price",
-    "remaining_lease",
-    "ethnic_eligibility",
-    "spr_eligibility",
-    "ethnic_eligibility_date",
-    "managed_by_agent",
-    "agent_name",
-    "agent_number",
-    "agent_email",
-    "agent_agency_name",
-    "agent_cea_number",
-    "agent_license_no",
-    "listing_description",
-    "agent_last_updated",
-    "latitude",
-    "longitude",
-    "photo_main",
-    "photo_count",
-    "photo_urls",
-    "upgrading_tooltip",
-    "upgrading_short_desc",
-    "past_transaction_count",
-    "scraped_ok",
-    "warnings",
-    "error",
-]
-
 TXN_FIELDNAMES = [
     "listing_id",
     "street",
@@ -108,9 +74,10 @@ TXN_FIELDNAMES = [
 ]
 
 
-def load_listing_ids(input_path):
-    """Read listing_id values out of the CSV produced by scrape_listings.py."""
+def load_listings_index(input_path):
+    """Read the step-1 CSV into an ordered id list and id -> row lookup."""
     ids = []
+    index = {}
     with open(input_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         if "listing_id" not in (reader.fieldnames or []):
@@ -121,7 +88,19 @@ def load_listing_ids(input_path):
             lid = (row.get("listing_id") or "").strip()
             if lid:
                 ids.append(lid)
-    return ids
+                index[lid] = row
+    return ids, index
+
+
+def apply_listings_index(row, index_row):
+    """Copy listings-only columns from the step-1 CSV into a detail row."""
+    for fn in LISTINGS_INDEX_ONLY_FIELDNAMES:
+        row[fn] = (index_row.get(fn) or "") if index_row else ""
+    return row
+
+
+def normalize_detail_row(row):
+    return {fn: row.get(fn, "") for fn in DETAIL_FIELDNAMES}
 
 
 def load_successful_rows(output_path):
@@ -159,7 +138,7 @@ def load_kept_transactions(txn_path, keep_ids):
 
 
 def fetch_listing_detail(
-    session, listing_id, retries=4, backoff=2.0, timeout=30, debug=False
+    session, listing_id, index_row=None, retries=4, backoff=2.0, timeout=30, debug=False
 ):
     """Fetch full detail for one listing.
 
@@ -175,6 +154,7 @@ def fetch_listing_detail(
     row = {fn: "" for fn in DETAIL_FIELDNAMES}
     row["listing_id"] = listing_id
     row["url"] = LISTING_URL_TEMPLATE.format(id=listing_id)
+    apply_listings_index(row, index_row)
     txn_rows = []
     warnings = []
 
@@ -347,7 +327,7 @@ def main():
     ensure_parent_dir(detail_path)
     ensure_parent_dir(txn_path)
 
-    ids = load_listing_ids(args.input)
+    ids, listings_index = load_listings_index(args.input)
     print(f"Loaded {len(ids)} listing_id(s) from {args.input}")
 
     if args.limit:
@@ -381,7 +361,10 @@ def main():
 
         # Re-seed previously successful rows first (resume case).
         for r in kept_detail_rows:
-            detail_writer.writerow(r)
+            lid = (r.get("listing_id") or "").strip()
+            detail_writer.writerow(
+                normalize_detail_row(apply_listings_index(r, listings_index.get(lid)))
+            )
         for r in kept_txn_rows:
             txn_writer.writerow(r)
         df.flush()
@@ -390,8 +373,13 @@ def main():
         ok_count = 0
         err_count = 0
         for i, listing_id in enumerate(todo, 1):
-            row, txn_rows = fetch_listing_detail(session, listing_id, debug=args.debug)
-            detail_writer.writerow(row)
+            row, txn_rows = fetch_listing_detail(
+                session,
+                listing_id,
+                listings_index.get(listing_id),
+                debug=args.debug,
+            )
+            detail_writer.writerow(normalize_detail_row(row))
             for t in txn_rows:
                 txn_writer.writerow(t)
             df.flush()
