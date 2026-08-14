@@ -308,8 +308,6 @@ def main():
                 logger.info(
                     "[%d/%d] skipping existing (only-new) %s", i, len(ids), listing_id
                 )
-            if args.delay and i < len(ids):
-                time.sleep(args.delay)
             continue
         row = fetch_listing_detail(
             session, listing_id, listings_index.get(listing_id), debug=args.debug
