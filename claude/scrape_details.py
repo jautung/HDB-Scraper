@@ -261,6 +261,11 @@ def main():
         default=None,
         help="Only process the first N listings (useful for a test run).",
     )
+    parser.add_argument(
+        "--only-new",
+        action="store_true",
+        help="Skip listings that already exist in the output details CSV (do not refetch or update timestamps).",
+    )
     # Always append; no overwrite mode
     parser.add_argument(
         "--debug", action="store_true", help="Verbose per-request logging to stderr."
@@ -296,6 +301,16 @@ def main():
 
     # Process each listing and update in-memory `existing` mapping; do not append rows.
     for i, listing_id in enumerate(ids, 1):
+        # If --only-new is set and this listing already exists, skip refetching.
+        if args.only_new and listing_id in existing:
+            touched.add(listing_id)
+            if i % 25 == 0 or i == len(ids):
+                logger.info(
+                    "[%d/%d] skipping existing (only-new) %s", i, len(ids), listing_id
+                )
+            if args.delay and i < len(ids):
+                time.sleep(args.delay)
+            continue
         row = fetch_listing_detail(
             session, listing_id, listings_index.get(listing_id), debug=args.debug
         )
