@@ -1,15 +1,21 @@
-# HDB Scraper
+# HDB Scraper (deprecated)
+
+> **This root-level scraper is deprecated.** Use [`claude/`](claude/README.md) instead — it hits the HDB Flat Portal public API directly (no browser automation, no Google Maps API key). Outputs go into `claude/output/`.
+
+---
+
+The notes below are kept for reference only.
+
+## Legacy usage
 
 A way to get all the listings from the [HDB resale portal](https://homes.hdb.gov.sg/home/finding-a-flat).
 
 Currently adding more capabilities to get listings from [PropertyGuru](https://www.propertyguru.com.sg/property-for-sale) as well.
 
-## To check credits
+### To check credits
 
 - [Metrics](https://console.cloud.google.com/google/maps-apis/metrics?project=first-server-449508-n0&inv=1&invt=Ab3etw).
 - [Billing account](https://console.cloud.google.com/billing/016D1B-EEA421-736499/reports?project=first-server-449508-n0&inv=1&invt=Ab3etw).
-
-## Usage
 
 ### Setup requirements (`pip list`)
 
@@ -89,4 +95,3 @@ python3 pg_base_scraper.py
 ```bash
 black .
 ```
-
