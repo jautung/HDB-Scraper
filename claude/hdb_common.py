@@ -82,9 +82,9 @@ DETAIL_SPECIFIC_FIELDNAMES = [
     "upgrading_tooltip",
     "upgrading_short_desc",
     "past_transaction_count",
-    "scraped_ok",
-    "warnings",
-    "error",
+    "earliest_scraped",
+    "latest_scraped",
+    "is_still_listed",
 ]
 
 # Details CSV: listings index columns (minus area_sqm, photo_url) then detail-specific.

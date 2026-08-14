@@ -103,38 +103,38 @@ def normalize_detail_row(row):
     return {fn: row.get(fn, "") for fn in DETAIL_FIELDNAMES}
 
 
-def load_successful_rows(output_path):
-    """Read existing detail rows, keeping only ones that succeeded (scraped_ok == '1').
-    Failed rows are dropped so they get retried (and re-appended fresh) on this run.
-    Returns (kept_rows, done_ids_set).
+def load_existing_earliest_map(output_path):
+    """Read existing detail rows (if any) and return a mapping from listing_id
+    to the earliest_scraped value seen for that listing. Used to preserve
+    the original earliest timestamp when appending new rows.
     """
     if not os.path.exists(output_path):
-        return [], set()
-    kept = []
-    done = set()
+        return {}
+    earliest = {}
     with open(output_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             lid = (row.get("listing_id") or "").strip()
-            if lid and row.get("scraped_ok") == "1":
-                kept.append(row)
-                done.add(lid)
-    return kept, done
+            if not lid:
+                continue
+            es = (row.get("earliest_scraped") or "").strip()
+            if not es:
+                es = (row.get("latest_scraped") or "").strip()
+            if not es:
+                continue
+            prev = earliest.get(lid)
+            # Prefer the lexicographically smaller ISO timestamp if available.
+            earliest[lid] = es if prev is None or es < prev else prev
+    return earliest
 
 
 def load_kept_transactions(txn_path, keep_ids):
     """Read existing transaction rows, keeping only ones whose listing_id is in keep_ids
     (i.e. belongs to a listing that succeeded and is being preserved across the resume).
     """
-    if not os.path.exists(txn_path):
-        return []
-    kept = []
-    with open(txn_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if (row.get("listing_id") or "").strip() in keep_ids:
-                kept.append(row)
-    return kept
+    # With append-only details output we no longer need to selectively
+    # re-seed transaction rows; transactions will be appended per-run.
+    return []
 
 
 def fetch_listing_detail(
@@ -142,14 +142,11 @@ def fetch_listing_detail(
 ):
     """Fetch full detail for one listing.
 
-    detailsJdbc is treated as a hard requirement -- if it fails, the whole
-    row is marked scraped_ok=0 and gets retried on the next run.
-
-    The other four calls (images, coordinates, upgrading description, past
-    transactions) fail *soft*: e.g. getPastTransaction legitimately 404s for
-    flats with no resale history at that address, and a missing coordinate
-    or image lookup shouldn't throw away an otherwise-good row. Each soft
-    failure is noted in `warnings` and that field is just left blank.
+    detailsJdbc is treated as a hard requirement -- if it fails, this
+    listing is skipped for this run (the error is logged) and can be
+    retried later. The other four calls (images, coordinates,
+    upgrading description, past transactions) fail *soft* and are
+    logged to stderr but do not prevent emitting a detail row.
     """
     row = {fn: "" for fn in DETAIL_FIELDNAMES}
     row["listing_id"] = listing_id
@@ -171,16 +168,12 @@ def fetch_listing_detail(
 
     try:
         details = call(DETAILS_URL, {"listingId": listing_id}) or {}
-    except (
-        Exception
-    ) as exc:  # noqa: BLE001 -- hard failure, whole row is bad, will be retried
-        row["scraped_ok"] = "0"
-        row["error"] = str(exc)
+    except Exception as exc:  # noqa: BLE001 -- hard failure, skip this listing for now
         print(
             f"[error] listing {listing_id} failed (core details call): {exc}",
             file=sys.stderr,
         )
-        return row, txn_rows
+        return None, txn_rows
 
     row["flat_type"] = details.get("flatType", "")
     row["town"] = details.get("town", "")
@@ -281,8 +274,11 @@ def fetch_listing_detail(
             else:
                 warnings.append(f"past_transactions: {exc}")
 
-    row["scraped_ok"] = "1"
-    row["warnings"] = "; ".join(warnings)
+    if warnings:
+        print(
+            f"[warn] listing {listing_id} warnings: {'; '.join(warnings)}",
+            file=sys.stderr,
+        )
     return row, txn_rows
 
 
@@ -334,39 +330,35 @@ def main():
         ids = ids[: args.limit]
         print(f"--limit set: processing only first {len(ids)}")
 
-    done_ids = set() if args.overwrite else None
-    kept_detail_rows, kept_txn_rows = [], []
-    if not args.overwrite:
-        kept_detail_rows, done_ids = load_successful_rows(detail_path)
-        kept_txn_rows = load_kept_transactions(txn_path, done_ids)
-    if done_ids:
-        print(
-            f"Resuming: {len(done_ids)} listing(s) already succeeded in {detail_path}, will skip those."
-        )
-
-    todo = [i for i in ids if i not in done_ids]
-    print(
-        f"{len(todo)} listing(s) to fetch (includes retries of any previously-failed ones)."
+    # Build map of existing earliest timestamps (used to preserve original
+    # earliest_scraped when appending subsequent rows). If --overwrite is
+    # specified we start fresh.
+    existing_earliest = (
+        {} if args.overwrite else load_existing_earliest_map(detail_path)
     )
+
+    todo = ids
+    print(f"{len(todo)} listing(s) to fetch.")
 
     session = new_session()
 
-    with open(detail_path, "w", newline="", encoding="utf-8") as df, open(
-        txn_path, "w", newline="", encoding="utf-8"
+    detail_mode = "w" if args.overwrite else "a"
+    txn_mode = "w" if args.overwrite else "a"
+
+    # Open files for append (or overwrite) and write headers if newly created.
+    detail_is_new = not os.path.exists(detail_path) or args.overwrite
+    txn_is_new = not os.path.exists(txn_path) or args.overwrite
+
+    with open(detail_path, detail_mode, newline="", encoding="utf-8") as df, open(
+        txn_path, txn_mode, newline="", encoding="utf-8"
     ) as tf:
         detail_writer = csv.DictWriter(df, fieldnames=DETAIL_FIELDNAMES)
         txn_writer = csv.DictWriter(tf, fieldnames=TXN_FIELDNAMES)
-        detail_writer.writeheader()
-        txn_writer.writeheader()
+        if detail_is_new:
+            detail_writer.writeheader()
+        if txn_is_new:
+            txn_writer.writeheader()
 
-        # Re-seed previously successful rows first (resume case).
-        for r in kept_detail_rows:
-            lid = (r.get("listing_id") or "").strip()
-            detail_writer.writerow(
-                normalize_detail_row(apply_listings_index(r, listings_index.get(lid)))
-            )
-        for r in kept_txn_rows:
-            txn_writer.writerow(r)
         df.flush()
         tf.flush()
 
@@ -379,16 +371,32 @@ def main():
                 listings_index.get(listing_id),
                 debug=args.debug,
             )
+            if row is None:
+                err_count += 1
+                if i % 25 == 0 or i == len(todo):
+                    print(
+                        f"[{i}/{len(todo)}] ok={ok_count} err={err_count} (last: {listing_id})"
+                    )
+                if args.delay and i < len(todo):
+                    time.sleep(args.delay)
+                continue
+
+            # Timestamps: preserve earliest if we have one, otherwise set to now.
+            now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            earliest = existing_earliest.get(listing_id) or now
+            row["earliest_scraped"] = earliest
+            row["latest_scraped"] = now
+            row["is_still_listed"] = "true"
+            # Remember earliest for any subsequent rows in this run.
+            existing_earliest.setdefault(listing_id, earliest)
+
             detail_writer.writerow(normalize_detail_row(row))
             for t in txn_rows:
                 txn_writer.writerow(t)
             df.flush()
             tf.flush()
 
-            if row["scraped_ok"] == "1":
-                ok_count += 1
-            else:
-                err_count += 1
+            ok_count += 1
 
             if i % 25 == 0 or i == len(todo):
                 print(
