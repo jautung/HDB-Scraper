@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import time
+import logging
 
 import requests
 
@@ -145,7 +146,7 @@ def post_json(session, url, payload, retries=4, backoff=2.0, timeout=30, debug=F
 
     def _debug(msg):
         if debug:
-            print(f"[debug] {msg}", file=sys.stderr)
+            logging.getLogger(__name__).debug(msg)
 
     last_err = None
     for attempt in range(1, retries + 1):
@@ -183,17 +184,15 @@ def post_json(session, url, payload, retries=4, backoff=2.0, timeout=30, debug=F
             if exc.response is not None and exc.response.status_code == 404:
                 raise RuntimeError(f"404 Not Found: {url}") from exc
             last_err = exc
-            print(
-                f"[warn] {url} attempt {attempt}/{retries} failed: {exc}",
-                file=sys.stderr,
+            logging.getLogger(__name__).warning(
+                "%s attempt %d/%d failed: %s", url, attempt, retries, exc
             )
             if attempt < retries:
                 time.sleep(backoff * attempt)
         except (requests.RequestException, ValueError, json.JSONDecodeError) as exc:
             last_err = exc
-            print(
-                f"[warn] {url} attempt {attempt}/{retries} failed: {exc}",
-                file=sys.stderr,
+            logging.getLogger(__name__).warning(
+                "%s attempt %d/%d failed: %s", url, attempt, retries, exc
             )
             if attempt < retries:
                 time.sleep(backoff * attempt)

@@ -24,6 +24,7 @@ import argparse
 import csv
 import json
 from datetime import datetime, timezone
+import logging
 
 from hdb_common import (
     DEFAULT_LISTINGS_BASE,
@@ -154,20 +155,27 @@ def main():
     )
     args = parser.parse_args()
 
-    print("Fetching listings from HDB public map API...")
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s (%(name)s) [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    logger = logging.getLogger(__name__)
+
+    logger.info("Fetching listings from HDB public map API...")
     pins = fetch_all_listings(debug=args.debug)
-    print(f"Received {len(pins)} map pin(s).")
+    logger.info("Received %d map pin(s).", len(pins))
 
     rows = flatten_pins(pins)
-    print(f"Flattened to {len(rows)} individual listing(s).")
+    logger.info("Flattened to %d individual listing(s).", len(rows))
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    print(f"Scrape timestamp: {timestamp}")
+    logger.info("Scrape timestamp: %s", timestamp)
 
     csv_path = f"{args.out}.csv"
     ensure_parent_dir(csv_path)
     write_csv(rows, csv_path)
-    print(f"Wrote CSV -> {csv_path}")
+    logger.info("Wrote CSV -> %s", csv_path)
 
 
 if __name__ == "__main__":

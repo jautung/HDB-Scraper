@@ -21,6 +21,7 @@ geocoding the postal code and the walking distance matrix. Requires
 
 import argparse
 import csv
+import logging
 import os
 import sys
 import tempfile
@@ -117,9 +118,16 @@ def main():
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s (%(name)s) [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    logger = logging.getLogger(__name__)
+
     input_path = args.input
     if not os.path.exists(input_path):
-        print(f"Input file not found: {input_path}", file=sys.stderr)
+        logger.error("Input file not found: %s", input_path)
         sys.exit(2)
 
     mrt_map = load_mrt_map(PRECOMPUTE_PATH)
@@ -135,8 +143,7 @@ def main():
                 break
             rows.append(row)
 
-    if args.debug:
-        print(f"Loaded {len(rows)} rows to process from {input_path}")
+    logger.debug("Loaded %d rows to process from %s", len(rows), input_path)
 
     # Process and update only MRT_FIELDS
     updated = 0
@@ -162,10 +169,9 @@ def main():
             row["walking_distance_km"] = f"{walk_km:.3f}"
         updated += 1
         if args.debug and (idx % 25 == 0):
-            print(f"Processed {idx+1}/{len(rows)} rows")
+            logger.debug("Processed %d/%d rows", idx + 1, len(rows))
 
-    if args.debug:
-        print(f"Updated {updated} rows. Writing back to {input_path}")
+    logger.info("Updated %d rows. Writing back to %s", updated, input_path)
 
     # Write to temp file and replace original
     dirn = os.path.dirname(input_path) or "."
@@ -192,7 +198,7 @@ def main():
             except Exception:
                 pass
 
-    print(f"MRT augmentation complete. Updated {updated} rows in {input_path}")
+    logger.info("MRT augmentation complete. Updated %d rows in %s", updated, input_path)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ import csv
 import os
 import sys
 import time
+import logging
 
 from hdb_common import (
     DEFAULT_DETAILS_BASE,
@@ -157,10 +158,8 @@ def fetch_listing_detail(
     try:
         details = call(DETAILS_URL, {"listingId": listing_id}) or {}
     except Exception as exc:  # noqa: BLE001 -- hard failure, skip this listing for now
-        print(
-            f"[error] listing {listing_id} failed (core details call): {exc}",
-            file=sys.stderr,
-        )
+        logger = logging.getLogger(__name__)
+        logger.error("listing %s failed (core details call): %s", listing_id, exc)
         return None
 
     row["flat_type"] = details.get("flatType", "")
@@ -231,10 +230,8 @@ def fetch_listing_detail(
             warnings.append(f"upgrading_description: {exc}")
 
     if warnings:
-        print(
-            f"[warn] listing {listing_id} warnings: {'; '.join(warnings)}",
-            file=sys.stderr,
-        )
+        logger = logging.getLogger(__name__)
+        logger.warning("listing %s warnings: %s", listing_id, "; ".join(warnings))
     return row
 
 
@@ -270,15 +267,22 @@ def main():
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s (%(name)s) [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    logger = logging.getLogger(__name__)
+
     detail_path = f"{args.out}.csv"
     ensure_parent_dir(detail_path)
 
     ids, listings_index = load_listings_index(args.input)
-    print(f"Loaded {len(ids)} listing_id(s) from {args.input}")
+    logger.info("Loaded %d listing_id(s) from %s", len(ids), args.input)
 
     if args.limit:
         ids = ids[: args.limit]
-        print(f"--limit set: processing only first {len(ids)}")
+        logger.info("--limit set: processing only first %d", len(ids))
 
     # Load existing details and earliest timestamps to preserve earliest_scraped
     existing = load_existing_details(detail_path)
@@ -298,8 +302,13 @@ def main():
         if row is None:
             err_count += 1
             if i % 25 == 0 or i == len(ids):
-                print(
-                    f"[{i}/{len(ids)}] ok={ok_count} err={err_count} (last: {listing_id})"
+                logger.info(
+                    "[%d/%d] ok=%d err=%d (last: %s)",
+                    i,
+                    len(ids),
+                    ok_count,
+                    err_count,
+                    listing_id,
                 )
             if args.delay and i < len(ids):
                 time.sleep(args.delay)
@@ -323,8 +332,13 @@ def main():
 
         ok_count += 1
         if i % 25 == 0 or i == len(ids):
-            print(
-                f"[{i}/{len(ids)}] ok={ok_count} err={err_count} (last: {listing_id})"
+            logger.info(
+                "[%d/%d] ok=%d err=%d (last: %s)",
+                i,
+                len(ids),
+                ok_count,
+                err_count,
+                listing_id,
             )
         if args.delay and i < len(ids):
             time.sleep(args.delay)
@@ -342,9 +356,9 @@ def main():
         for lid in sorted(existing.keys()):
             writer.writerow(existing[lid])
 
-    print(f"Done. Wrote current details -> {detail_path}")
+    logger.info("Done. Wrote current details -> %s", detail_path)
     if err_count:
-        print(f"{err_count} listing(s) failed during fetch.", file=sys.stderr)
+        logger.error("%d listing(s) failed during fetch.", err_count)
 
 
 if __name__ == "__main__":
