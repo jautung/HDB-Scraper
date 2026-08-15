@@ -58,9 +58,17 @@ So, running the full sequence will look like:
 
 ```bash
 cd claude
-python3 mrt_precompute.py
-python3 scrape_listings.py
-python3 scrape_details.py
+
+# Fast updates
+python3 mrt_precompute.py && \
+python3 scrape_listings.py && \
+python3 scrape_details.py --only-new && \
+python3 mrt_augmenter.py
+
+# Full refresh
+python3 mrt_precompute.py && \
+python3 scrape_listings.py && \
+python3 scrape_details.py && \
 python3 mrt_augmenter.py
 ```
 
