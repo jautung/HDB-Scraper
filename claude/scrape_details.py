@@ -42,8 +42,9 @@ from hdb_common import (
     extract_lat_lon,
     new_session,
     post_json,
+    MRT_AUGMENT_FIELDS,
 )
-from gsheet_util import DEFAULT_SHEET_ID
+import gsheet_util
 
 DETAILS_URL = (
     "https://api.homes.hdb.gov.sg/flatback/public/v1/listing/resale/detailsJdbc"
@@ -273,7 +274,7 @@ def main():
     )
     parser.add_argument(
         "--gsheet-id",
-        default=DEFAULT_SHEET_ID,
+        default=gsheet_util.DEFAULT_SHEET_ID,
         help="If provided, also write results to this Google Sheet ID.",
     )
     parser.add_argument(
@@ -393,12 +394,38 @@ def main():
     # Optionally write/update Google Sheet using CSV semantics
     if args.gsheet_id:
         try:
-            from gsheet_util import upsert_sheet_by_listing_id, write_sheet_overwrite
+            from gsheet_util import (
+                upsert_sheet_by_listing_id,
+                write_sheet_overwrite,
+                read_sheet_rows,
+            )
 
             rows_in_order = [existing[lid] for lid in sorted(existing.keys())]
+
+            # Merge existing MRT values from the sheet to avoid clearing MRT-augmented data.
+            try:
+                sheet_headers, sheet_rows = read_sheet_rows(
+                    args.gsheet_id, args.gsheet_creds
+                )
+                sheet_map = {
+                    ((r.get("listing_id") or "").strip()): r for r in sheet_rows
+                }
+                for r in rows_in_order:
+                    lid = (r.get("listing_id") or "").strip()
+                    if not lid:
+                        continue
+                    s = sheet_map.get(lid)
+                    if not s:
+                        continue
+                    for f in MRT_AUGMENT_FIELDS:
+                        if not (r.get(f) or "").strip() and (s.get(f) or "").strip():
+                            r[f] = s.get(f)
+            except Exception:
+                logger.debug(
+                    "Could not read existing sheet to merge MRT fields; proceeding without merge"
+                )
+
             # For simplicity reuse upsert helper: it will update existing rows and append new ones.
-            # If the user requested append-only semantics (`--gsheet-mode append`), we still call upsert
-            # but the local CSV semantics (when using `--only-new`) will ensure existing rows were not modified.
             upsert_sheet_by_listing_id(
                 args.gsheet_id, args.gsheet_creds, DETAIL_FIELDNAMES, rows_in_order
             )
