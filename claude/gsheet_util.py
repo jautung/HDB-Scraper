@@ -178,19 +178,22 @@ def update_mrt_columns(
             listing_idx[lid] = i
 
     updates = []
-    updated_count = 0
+    updated_lids = set()
     for lid, mvals in listing_id_to_mrt_values.items():
         if lid not in listing_idx:
             continue
         rownum = listing_idx[lid]
-        # build full-row values for columns we will update (others empty placeholders)
-        vals = [""] * len(headers)
         for f, v in mvals.items():
-            if f in col_index:
-                vals[col_index[f] - 1] = v
-        updates.append({"range": f"A{rownum}:{lastcol}{rownum}", "values": [vals]})
-        updated_count += 1
+            if not v:
+                continue
+            if f not in col_index:
+                continue
+            col_letter = _colnum_to_letter(col_index[f])
+            updates.append(
+                {"range": f"{col_letter}{rownum}:{col_letter}{rownum}", "values": [[v]]}
+            )
+            updated_lids.add(lid)
 
     if updates:
         ws.batch_update(updates, value_input_option="USER_ENTERED")
-    return updated_count
+    return len(updated_lids)
