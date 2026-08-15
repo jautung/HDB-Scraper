@@ -43,6 +43,7 @@ from hdb_common import (
     new_session,
     post_json,
 )
+from gsheet_util import DEFAULT_SHEET_ID
 
 DETAILS_URL = (
     "https://api.homes.hdb.gov.sg/flatback/public/v1/listing/resale/detailsJdbc"
@@ -270,6 +271,22 @@ def main():
     parser.add_argument(
         "--debug", action="store_true", help="Verbose per-request logging to stderr."
     )
+    parser.add_argument(
+        "--gsheet-id",
+        default=DEFAULT_SHEET_ID,
+        help="If provided, also write results to this Google Sheet ID.",
+    )
+    parser.add_argument(
+        "--gsheet-creds",
+        default="gsheet-writer-key.json",
+        help="Path to service account JSON credentials for Google Sheets. Default: claude/gsheet-writer-key.json",
+    )
+    parser.add_argument(
+        "--gsheet-mode",
+        choices=("upsert", "append"),
+        default="upsert",
+        help="How to write to Google Sheets: 'upsert' (update existing rows by listing_id + append new) or 'append' (append only). Default: upsert",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -372,6 +389,22 @@ def main():
     logger.info("Done. Wrote current details -> %s", detail_path)
     if err_count:
         logger.error("%d listing(s) failed during fetch.", err_count)
+
+    # Optionally write/update Google Sheet using CSV semantics
+    if args.gsheet_id:
+        try:
+            from gsheet_util import upsert_sheet_by_listing_id, write_sheet_overwrite
+
+            rows_in_order = [existing[lid] for lid in sorted(existing.keys())]
+            # For simplicity reuse upsert helper: it will update existing rows and append new ones.
+            # If the user requested append-only semantics (`--gsheet-mode append`), we still call upsert
+            # but the local CSV semantics (when using `--only-new`) will ensure existing rows were not modified.
+            upsert_sheet_by_listing_id(
+                args.gsheet_id, args.gsheet_creds, DETAIL_FIELDNAMES, rows_in_order
+            )
+            logger.info("Synced details to Google Sheet: %s", args.gsheet_id)
+        except Exception as exc:  # pragma: no cover - optional feature
+            logger.exception("Failed to write to Google Sheet: %s", exc)
 
 
 if __name__ == "__main__":

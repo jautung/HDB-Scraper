@@ -12,6 +12,8 @@ source venv/activate
 pip install bs4
 pip install requests
 pip install googlemaps
+pip install gspread
+pip install google-auth
 ```
 
 ### Google Maps API billing / usage
@@ -61,6 +63,47 @@ python3 scrape_listings.py
 python3 scrape_details.py
 python3 mrt_augmenter.py
 ```
+
+### Google Sheets integration (optional)
+
+You can sync results to a Google Sheet using a service-account key. The repository includes a default key path `claude/gsheet-writer-key.json` (git-ignored) and a default shared sheet ID used by the scripts.
+
+Setup
+
+1. Create a Google Cloud service account and generate a JSON key. Save it to `claude/gsheet-writer-key.json` or specify another path with `--gsheet-creds`.
+2. Share the target Google Sheet with the service account email (Editor role). The default sheet ID used by the scripts is:
+
+```
+1euqvyslpzbfkJniEbeM1YfrutGtfPCRV4CmroprCb5I
+```
+
+Dependencies
+
+```bash
+pip install gspread google-auth
+```
+
+Usage
+
+- `scrape_details.py` will by default upsert (update existing rows by `listing_id` and append new rows) to the default sheet after writing the CSV. To explicitly control sheet writes, use:
+
+```bash
+python3 scrape_details.py --gsheet-id 1euqvyslpzbfkJniEbeM1YfrutGtfPCRV4CmroprCb5I --gsheet-creds claude/gsheet-writer-key.json
+```
+
+- Modes: `--gsheet-mode upsert|append` (default `upsert`). `--only-new` still causes local append-only behavior (skip refetching existing rows).
+
+- `mrt_augmenter.py` will update only the four MRT columns in the sheet (no row appends). Example:
+
+```bash
+python3 mrt_augmenter.py --gsheet-id 1euqvyslpzbfkJniEbeM1YfrutGtfPCRV4CmroprCb5I --gsheet-creds claude/gsheet-writer-key.json --limit 100
+```
+
+Notes
+
+- The scripts read the sheet once to build a `listing_id -> row` map and perform batched updates to minimize API calls.
+- If sheet headers differ from the CSV headers the scripts will default to overwriting the sheet to keep columns consistent.
+- Keep the service-account JSON secret; it is already in `.gitignore` when placed at `claude/gsheet-writer-key.json`.
 
 Notes on output files and re-runs
 

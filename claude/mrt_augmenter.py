@@ -28,6 +28,7 @@ import tempfile
 
 from hdb_common import DEFAULT_DETAILS_BASE
 import gmaps_util
+from gsheet_util import DEFAULT_SHEET_ID
 
 # Precompute CSV location (in this directory's output/)
 PRECOMPUTE_PATH = os.path.join(os.path.dirname(__file__), "output", "mrt_lat_lon.csv")
@@ -116,6 +117,16 @@ def main():
         action="store_true",
         help="Verbose debugging prints",
     )
+    parser.add_argument(
+        "--gsheet-id",
+        default=DEFAULT_SHEET_ID,
+        help="If provided, also update MRT columns in this Google Sheet ID.",
+    )
+    parser.add_argument(
+        "--gsheet-creds",
+        default="gsheet-writer-key.json",
+        help="Path to service account JSON credentials for Google Sheets. Default: claude/gsheet-writer-key.json",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -199,6 +210,29 @@ def main():
                 pass
 
     logger.info("MRT augmentation complete. Updated %d rows in %s", updated, input_path)
+
+    # Optionally push MRT-only updates to Google Sheet
+    if args.gsheet_id:
+        try:
+            # build mapping listing_id -> {mrt_field: value}
+            mapping = {}
+            for r in rows:
+                lid = (r.get("listing_id") or "").strip()
+                if not lid:
+                    continue
+                mvals = {f: (r.get(f) or "") for f in MRT_FIELDS}
+                # only include if any MRT field present
+                if any(mvals.values()):
+                    mapping[lid] = mvals
+            if mapping:
+                from gsheet_util import update_mrt_columns
+
+                cnt = update_mrt_columns(
+                    args.gsheet_id, args.gsheet_creds, mapping, MRT_FIELDS
+                )
+                logger.info("Pushed MRT updates to Google Sheet (%d rows updated)", cnt)
+        except Exception as exc:  # pragma: no cover - optional feature
+            logger.exception("Failed to update Google Sheet: %s", exc)
 
 
 if __name__ == "__main__":
